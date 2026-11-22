@@ -1,0 +1,17 @@
+[GAME]
+{
+    MapName=Bukit Tengah 1v1 1.0;
+    GameType=BukitUji.sdd;
+    MyPlayerName=Pemain;
+    IsHost=1;
+    StartPosType=0;
+    GameStartDelay=1;
+    RecordDemo=0;
+    FixedRNGSeed=1;
+    [PLAYER0]{Name=Pemain;Team=0;Spectator=0;}
+    [TEAM0]{TeamLeader=0;AllyTeam=0;RgbColor=0.23 0.65 1;}
+    [TEAM1]{TeamLeader=0;AllyTeam=1;RgbColor=1 0.25 0.2;}
+    [ALLYTEAM0]{NumAllies=0;}
+    [ALLYTEAM1]{NumAllies=0;}
+    [AI0]{Name=Penanda Lawan;ShortName=NullAI;Version=0.1;Team=1;Host=0;}
+}

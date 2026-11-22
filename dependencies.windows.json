@@ -1,0 +1,20 @@
+[
+  {
+    "nama": "Recoil Engine",
+    "versi": "2026.09.03",
+    "arsip": "recoil_2026.09.03_amd64-windows.7z",
+    "url": "https://github.com/beyond-all-reason/RecoilEngine/releases/download/2026.09.03/recoil_2026.09.03_amd64-windows.7z",
+    "sha256": "168e793b5f336880502829d0954f33059de4b8cba707d540dedb72da963f9998",
+    "folder": "recoil/2026.09.03",
+    "berkas": ["spring.exe", "spring-headless.exe", "spring-dedicated.exe", "unitsync.dll", "base/springcontent.sdz", "base/maphelper.sdz"]
+  },
+  {
+    "nama": "PyMapConv",
+    "versi": "0.6.3",
+    "arsip": "pymapconv.v0.6.3.windows-amd64.zip",
+    "url": "https://github.com/Beherith/springrts_smf_compiler/releases/download/v0.6.3/pymapconv.v0.6.3.windows-amd64.zip",
+    "sha256": "576689aeaa71d33367194ca503c8575f2c553cc73aeebfb91a5bf10bc73b6f26",
+    "folder": "pymapconv/0.6.3",
+    "berkas": ["pymapconv.exe", "nvdxt.exe"]
+  }
+]
