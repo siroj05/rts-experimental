@@ -81,6 +81,8 @@ end
 bangunan.gudang.metalStorage = 3000
 bangunan.gudang.energyStorage = 500
 bangunan.radar.script = "radar.lua"
+-- Recoil hanya memproses sensor radar pada unit aktif. Jangkauan tetap diatur jaringan daya.
+bangunan.radar.activateWhenBuilt = true
 bangunan.menara_pertahanan.script = "menara_pertahanan.lua"
 bangunan.menara_pertahanan.canAttack = true
 bangunan.menara_pertahanan.weapons = {{name = "rts_meriam_menara", onlyTargetCategory = "DARAT"}}

@@ -24,7 +24,7 @@ function gadget:AllowWeaponTarget(unit, target, _, weapon, priority)
     priority = priority or 1
     if not arcs[weapon] then return true, priority end
     local x, _, z = sp.GetUnitPosition(unit)
-    local tx, _, tz = sp.GetUnitPosition(target)
+    local tx, _, tz = lontar.posisiUnit(unit, target)
     return x ~= nil and tx ~= nil and (tx - x)^2 + (tz - z)^2 >= lontar.jarakMin^2, priority
 end
 

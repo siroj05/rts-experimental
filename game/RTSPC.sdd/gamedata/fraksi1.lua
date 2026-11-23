@@ -68,10 +68,9 @@ for key, r in pairs(records) do
         explosiongenerator = "custom:rts_medium_hit",
         model = w.roket and "fx-tracer-roket.glb" or (w.kecil and "fx-tracer-kecil.glb" or "fx-tracer-meriam.glb"),
         castshadow = false,
-        soundstart = "sounds/" .. key .. "_tembak.wav",
-        soundhit = "sounds/ledakan-permukaan.wav",
-        soundstartvolume = w.kecil and 3 or 8, soundhitvolume = w.kecil and 2 or 7,
         customparams = {
+            suara_tembak = "sounds/" .. key .. "_tembak.wav",
+            volume_tembak = w.kecil and 3 or 8, volume_bentur = w.kecil and 2 or 7,
             efek_benturan_tanah = not w.kecil and "1" or "0",
             efek_benturan_baja = "1", skala_baja = w.kecil and ".42" or "1",
             skala_benturan = w.artileri and "1.7" or (w.roket and ".72" or "1"),

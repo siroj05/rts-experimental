@@ -28,13 +28,13 @@ end
 
 function script.BlockShot(weapon) return not bolehTembak(weapon) end
 
-function script.Shot()
+function script.Shot(weapon)
     local x, y, z = sp.GetUnitPiecePosDir(unitID, moncong)
     local px, py, pz = sp.GetUnitPiecePosDir(unitID, laras)
     local dx, dy, dz = x - px, y - py, z - pz
     local panjang = math.sqrt(dx^2 + dy^2 + dz^2)
     if panjang > 0 and GG.FxMoncongV2 then
-        GG.FxMoncongV2(unitID, false, x, y, z, dx / panjang, dy / panjang, dz / panjang)
+        GG.FxMoncongV2(unitID, false, x, y, z, dx / panjang, dy / panjang, dz / panjang, weapon)
     end
 end
 

@@ -6,7 +6,9 @@ return {
     craterareaofeffect = 0, cratermult = 0, canattackground = true,
     avoidground = true, collideground = true, avoidfriendly = true, collidefriendly = false,
     rgbcolor = "1 .74 .35", size = 1.3, model = "fx-tracer-meriam.glb", castshadow = false,
-    explosiongenerator = "custom:rts_medium_hit", soundstart = "sounds/menara_tembak.ogg",
-    soundhit = "sounds/ledakan-permukaan.wav", soundstartvolume = 7, soundhitvolume = 6,
-    customparams = {efek_benturan_tanah = "1", efek_benturan_baja = "1", kompensasi_tick = "1", jarak_min = "80", fx_jejak = "meriam"},
+    explosiongenerator = "custom:rts_medium_hit",
+    customparams = {
+        efek_benturan_tanah = "1", efek_benturan_baja = "1", kompensasi_tick = "1", jarak_min = "80", fx_jejak = "meriam",
+        suara_tembak = "sounds/menara_tembak.ogg", volume_tembak = 7, volume_bentur = 6,
+    },
 }

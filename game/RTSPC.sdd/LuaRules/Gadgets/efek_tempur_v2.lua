@@ -16,10 +16,10 @@ if gadgetHandler:IsSyncedCode() then
     local deathWeapon = WeaponDefNames.noweapon and WeaponDefNames.noweapon.id
     function gadget:Initialize()
         if deathWeapon then Script.SetWatchExplosion(deathWeapon, true) end
-        GG.FxMoncongV2 = function(id, kecil, x, y, z, dx, dy, dz)
+        GG.FxMoncongV2 = function(id, kecil, x, y, z, dx, dy, dz, weapon)
             local def = UnitDefs[sp.GetUnitDefID(id)]
             local k = (kecil and .32) or (def.name == "tank_ringan" and .65) or 1
-            SendToUnsynced(muzzleEvent, x, y, z, dx, dy, dz, k, id, sp.GetGameFrame())
+            SendToUnsynced(muzzleEvent, x, y, z, dx, dy, dz, k, id, sp.GetGameFrame(), def.weapons[weapon].weaponDef)
         end
         GG.FxBenturanCadanganV2 = function(x, y, z, projectile, kecil, tanah)
             SendToUnsynced(impactEvent, x, y, z, projectile or -1, kecil, tanah, sp.GetGameFrame())
@@ -60,7 +60,7 @@ local elmo, fps = 8, Game.gameSpeed
 local function waktu(frame) return frame / fps end
 local function visible(x, y, z)
     local _, fullView = sp.GetSpectatingState()
-    return fullView or sp.IsPosInLos(x, y, z)
+    return fullView or sp.IsPosInLos(x, y, z, sp.GetMyAllyTeamID())
 end
 
 local function rng(seed)
@@ -90,8 +90,13 @@ local function spark(t, life, x, y, z, vx, vy, vz, s, gravity, hot)
 end
 
 -- Counts and motion from V2 FxMeriam.AddShot. Ground dust uses the terrain under the muzzle.
-local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame)
-    if not cloudShader or not visible(x, y, z) then return end
+local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame, weapon)
+    if not visible(x, y, z) then return end
+    local params = WeaponDefs[weapon].customParams
+    if params.suara_tembak then
+        sp.PlaySoundFile(params.suara_tembak, tonumber(params.volume_tembak) or 1, x, y, z, "battle")
+    end
+    if not cloudShader then return end
     local r, t, s = rng(id * 101 + frame * 7919), waktu(frame), k * elmo
     for j = 0, 6 do
         local d = j * .18 * s * 1.25
@@ -202,30 +207,36 @@ end
 local function jejak(frame)
     local t = waktu(frame)
     local _, fullView = sp.GetSpectatingState()
-    for _, id in ipairs(sp.GetVisibleProjectiles(fullView and -1 or sp.GetMyAllyTeamID(), true, true, false) or {}) do
+    local ally = sp.GetMyAllyTeamID()
+    for _, id in ipairs(sp.GetVisibleProjectiles(fullView and -1 or ally, true, true, false) or {}) do
         local style = profilSenjata[sp.GetProjectileDefID(id)]
         local p = profil[style]
         if p then
             local x, y, z = sp.GetProjectilePosition(id)
-            local old = trails[id]
-            if x and old and old.frame == frame-1 then
-                local dx, dy, dz = x-old.x, y-old.y, z-old.z
-                local gap = math.sqrt(dx*dx + dy*dy + dz*dz)
-                if gap > 0 and gap < 160 and #clouds < 1700 then
-                    local step = p[1]
-                    for d = step - old.carry, gap, step do
-                        local u = d/gap
-                        cloud(t - (1-u)/fps, p[2], old.x+dx*u, old.y+dy*u, old.z+dz*u,
-                            style == "artileri" and 6 or 1, 2, 1.4, p[3], p[4],
-                            style == "artileri" and 2 or 0, (id*.371+d*2.1)%48, 2.5, false, true)
+            if x and (fullView or sp.IsPosInLos(x, y, z, ally)) then
+                local old = trails[id]
+                if old and old.frame == frame-1 then
+                    local dx, dy, dz = x-old.x, y-old.y, z-old.z
+                    local gap = math.sqrt(dx*dx + dy*dy + dz*dz)
+                    if gap > 0 and gap < 160 and #clouds < 1700 then
+                        local step = p[1]
+                        for d = step - old.carry, gap, step do
+                            local u = d/gap
+                            local tx, ty, tz = old.x+dx*u, old.y+dy*u, old.z+dz*u
+                            if fullView or sp.IsPosInLos(tx, ty, tz, ally) then
+                                cloud(t - (1-u)/fps, p[2], tx, ty, tz,
+                                    style == "artileri" and 6 or 1, 2, 1.4, p[3], p[4],
+                                    style == "artileri" and 2 or 0, (id*.371+d*2.1)%48, 2.5, false, true)
+                            end
+                        end
+                        old.carry = (old.carry + gap) % step
                     end
-                    old.carry = (old.carry + gap) % step
+                else
+                    old = {carry=0}
+                    trails[id] = old
                 end
-            elseif x then
-                old = {carry=0}
-                trails[id] = old
+                old.frame, old.x, old.y, old.z = frame, x, y, z
             end
-            if x then old.frame, old.x, old.y, old.z = frame, x, y, z end
         end
     end
     for id, old in pairs(trails) do if old.frame ~= frame then trails[id] = nil end end

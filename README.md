@@ -98,7 +98,7 @@ Koreksi meriam menyesuaikan gravitasi diskret dan titik potong lintasan dengan p
 
 Benturan tanah memakai [flipbook asli proyek](game/RTSPC.sdd/bitmaps/fx/ledakan-tanah.png) dan 192 serpihan tanah serta bara 3D per benturan. Atlas 2048 × 1024 berisi 32 frame pada petak 256 × 256, sekitar dua detik per ledakan. Pandangannya dibake dari volume Blender pada sudut RTS 50°. Di Recoil, api, asap, dan debu menghadap kamera. Serpihan punya geometri sendiri dan jatuh ke permukaan.
 
-Senjata lain bisa mengaktifkannya dengan `customparams.efek_benturan_tanah = "1"` di definisi senjata. Gadget memakai selisih tinggi maksimum 1,5 elmo dari permukaan untuk memilih efek tanah, sehingga benturan ke bagian unit yang sangat dekat dengan tanah bisa memakai visual tanah. Recoil tetap menghitung damage dan memutar audio. Untuk bake ulang, jalankan Blender dengan `--background --python tools/bake_ledakan_tanah.py`. Skrip membaca `../blender-assets/efek/ledakan-tanah/ledakan-tanah.blend` dan memakai Python dengan Pillow untuk mengemas atlas.
+Senjata lain bisa mengaktifkannya dengan `customparams.efek_benturan_tanah = "1"` di definisi senjata. Gadget memakai selisih tinggi maksimum 1,5 elmo dari permukaan untuk memilih efek tanah, sehingga benturan ke bagian unit yang sangat dekat dengan tanah bisa memakai visual tanah. Recoil menghitung damage. Klien menampilkan efek dan memutar suara tempur berdasarkan pandangan tim setempat. Untuk bake ulang, jalankan Blender dengan `--background --python tools/bake_ledakan_tanah.py`. Skrip membaca `../blender-assets/efek/ledakan-tanah/ledakan-tanah.blend` dan memakai Python dengan Pillow untuk mengemas atlas.
 
 Benturan baja memakai [flipbook 16 frame](game/RTSPC.sdd/bitmaps/fx/benturan-baja.png) dari demo Medium Tank melawan Destroyer, ditambah percikan dan serpihan 3D. Aktifkan lewat `customparams.efek_benturan_baja = "1"`. Deteksi baja memakai kedekatan unit pada titik benturan di atas permukaan. Untuk bake ulang, tambahkan `-- baja` pada perintah Blender di atas.
 
@@ -114,7 +114,19 @@ Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. A
 
 `sounds/unit-hancur-v2.ogg` berasal dari `Assets/Konten/Suara/Kandidat/244394.mp3` di V2, [Bang/Explosion Metallic](https://freesound.org/people/Werra/sounds/244394/) oleh Werra, CC0. Dipotong sampai 3 detik dengan pudar 80 ms mengikuti durasi di V2. Ini suara kandidat yang sudah dipakai sementara di V2.
 
-Konstruksi dan reklamasi masih memakai visual Recoil. Loop suara mesin kendaraan dari V2 belum dipindahkan. Shockwave dan kawah permanen belum aktif di V2.
+Konstruksi dan reklamasi memakai visual Recoil. Shockwave dan kawah permanen belum aktif di V2.
+
+### Suara mesin kendaraan
+
+Light Tank, Medium Tank, dan Scout Halftrack masing-masing memakai rekaman mesin V2. Tank Destroyer dan Light Artillery memakai profil Medium Tank. Mixer audio lokal menghitung satu campuran per profil dari kendaraan yang terlihat, laju kendaraan, jarak ke titik pandang, dan zoom kamera. Mesin meredup antara 45 dan 100 m dari kamera ke titik pandang. Suara mesin memakai kanal pertempuran dengan prioritas lebih rendah dari suara senjata.
+
+Setiap loop 4 detik dibagi menjadi 16 potongan WAV dengan peralihan 100 ms. Untuk membangunnya ulang dari rekaman V2, jalankan `python tools/impor_suara_mesin.py`. Game memuat hasilnya dari `game/RTSPC.sdd/sounds/mesin/`.
+
+| Profil | Sumber | Pembuat | Lisensi |
+| --- | --- | --- | --- |
+| Light Tank | [AMX-13 Engine.wav](https://freesound.org/people/AdamHarvester/sounds/702456/) | AdamHarvester | CC0 |
+| Medium Tank | [Driving Tank Engine.flac](https://freesound.org/people/qubodup/sounds/187676/) | qubodup | CC0 |
+| Scout Halftrack | [djeep_idle.wav](https://freesound.org/people/Mihacappy/sounds/840649/) | Mihacappy | CC0 |
 
 ### Impor Fraksi 1
 
@@ -196,7 +208,9 @@ Dalam uji kontrol terpisah, lima unit campuran tiba setelah **Move**, mengenai s
 
 ### Regresi kontrol Central Hill
 
-Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case koridor`, `--case koridor-stop`, `--case rally`, `--case rally-barat`, atau `--case lereng`. Uji headless memakai salinan game, seed 1, dan AI skenario nonaktif. Log setiap skenario ada di `.cache/uji-kontrol/<case>/uji.log`. Perintah mengembalikan kode 1 bila ada baris `KONTROL, GAGAL`.
+Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case koridor`, `--case koridor-stop`, `--case rally`, `--case rally-barat`, `--case lereng`, `--case artileri`, atau `--case radar`. Uji headless memakai salinan game, seed 1, dan AI skenario nonaktif. Log setiap skenario ada di `.cache/uji-kontrol/<case>/uji.log`. Perintah mengembalikan kode 1 bila ada baris `KONTROL, GAGAL`.
+
+Uji `radar` memeriksa tiga kondisi sasaran di Central Hill. Radar berlistrik memberi perkiraan posisi, pandangan langsung memberi posisi bidik persis, dan artileri melepas kunci setelah kedua sensor kehilangan sasaran. Uji grafis terpisah dari sisi pemain Biru memperlihatkan titik radar, model Medium Tank, lalu kontak hilang. Dalam ketiga kondisi, tank Merah menembak. Kilatan, benturan, dan suara mesin Merah muncul saat terlihat langsung.
 
 | Uji | Hasil |
 | --- | --- |
@@ -204,11 +218,13 @@ Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case korido
 | Tiga produk Pabrik Kendaraan dan tiga produk Pabrik Robot | 6/6 keluar dari tapak dan mencapai rally di tiap orientasi. `rally` menguji pabrik menghadap timur dan `rally-barat` memakai posisi cermin. |
 | Medium Tank menembak tanah datar, kaki bukit, dan lereng miring | Ketiga kasus mencatat 6/6 benturan. Selisih mendatar terbesar 0,022 elmo. Perintah ke lereng curam dan arah puncak menahan tembakan. |
 | Artileri Ringan ke lereng pada 73,75 m dan sasaran dekat pada 20 m | Tiga benturan ke lereng tercatat dalam jendela uji. Artileri menahan tembakan pada 20 m. |
+| Artileri Ringan dari Pabrik Kendaraan, dua perintah Move, dan Attack Ground | Artileri harus tiba, menghadap sasaran dalam toleransi 3°, dan meletakkan tembakan pertama dalam 0,5 m dari sasaran. |
 
 Reproduksi perbaikan memakai koordinat `(x, z)` dalam elmo dan 8 elmo per meter.
 
 1. **Tujuan akhir Light Tank di selatan.** Jalankan `--case koridor`. Grup memakai Hold Fire dan lewat `(790, 1631)` lalu `(1030, 1636)`. Light Tank dari `(575, 1693)` sebelumnya berhenti 4,67 m dari `(1395, 1628)` setelah Recoil menutup perintah Move terlalu dini. Sekarang, jika Move terakhir ditutup dengan status selesai di luar radius 4 m, jalur ke tujuan yang bisa dilalui diminta kembali satu kali setelah tank berhenti. Waypoint perantara tetap dijalankan oleh Recoil. Perintah baru membatalkan percobaan yang masih menunggu.
 2. **Rally Engineer Bot dari Pabrik Robot.** Jalankan `--case rally`. Pabrik menghadap timur di `(560, 912)`, rally di `(705, 880)`, dan antrean Engineer Bot, Infantry Robot, Rocket Robot. Sebelumnya bukaan di yard map berada di sisi yang berlawanan dari soket produksi. Kolom bukaan dicerminkan agar sejajar dengan pintu dan soket. Posisi model serta ukuran tapak 16 × 16 m tetap sama.
+3. **Artileri Ringan berhenti sebelum badan selesai membidik.** Recoil menganggap sasaran sudah masuk kerucut 3D, padahal meriam tetap masih meleset dari sasaran secara horizontal. Artileri yang sudah berhenti melanjutkan putaran badan memakai kecepatan putarnya sendiri saat ada target sah. Jalankan `--case artileri` untuk menguji sasaran serong di `(980, 1740)` setelah unit keluar dari pabrik.
 
 ## Verifikasi
 

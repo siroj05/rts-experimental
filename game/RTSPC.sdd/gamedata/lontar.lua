@@ -1,11 +1,16 @@
 local lontar = {jarakMin = 240}
 
+function lontar.posisiUnit(unit, target)
+    -- Gunakan posisi perkiraan radar dari tim penembak dan posisi bidik asli saat terlihat.
+    local _, _, _, _, _, _, x, y, z = CallAsTeam({read = Spring.GetUnitTeam(unit)}, Spring.GetUnitPosition, target, true, true)
+    return x, y, z
+end
+
 function lontar.target(unit, weapon)
     local jenis, _, sasaran = Spring.GetUnitWeaponTarget(unit, weapon)
     if jenis == 2 and sasaran then return sasaran[1], sasaran[2], sasaran[3] end
     if jenis == 1 and sasaran and Spring.ValidUnitID(sasaran) then
-        local _, _, _, _, _, _, x, y, z = Spring.GetUnitPosition(sasaran, true, true)
-        return x, y, z
+        return lontar.posisiUnit(unit, sasaran)
     end
 end
 

@@ -4,6 +4,7 @@ end
 
 local sp = Spring
 local aksi = "rts_benturan"
+local audio = "rts_suara_benturan"
 local tanahAtlas = "bitmaps/fx/ledakan-tanah.png"
 local bajaAtlas = "bitmaps/fx/benturan-baja.png"
 
@@ -13,7 +14,7 @@ if gadgetHandler:IsSyncedCode() then
     function gadget:Initialize()
         for id, def in pairs(WeaponDefs) do
             local params = def.customParams
-            if params.efek_benturan_tanah == "1" or params.efek_benturan_baja == "1" then
+            if params.efek_benturan_tanah == "1" or params.efek_benturan_baja == "1" or params.volume_bentur then
                 Script.SetWatchExplosion(id, true)
             end
         end
@@ -21,6 +22,9 @@ if gadgetHandler:IsSyncedCode() then
 
     function gadget:Explosion(weapon, x, y, z, owner, proyektil)
         local params = WeaponDefs[weapon].customParams
+        if params.volume_bentur then
+            SendToUnsynced(audio, x, y, z, tonumber(params.volume_bentur))
+        end
         local tanah = sp.GetGroundHeight(x, z)
         if tanah >= 0 and math.abs(y - tanah) <= 1.5 then
             if tanahAda and params.efek_benturan_tanah == "1" then
@@ -34,7 +38,7 @@ if gadgetHandler:IsSyncedCode() then
                     local vx, _, vz = sp.GetProjectileVelocity(proyektil)
                     SendToUnsynced(aksi, "baja", x, y, z, proyektil, sp.GetGameFrame(),
                         tonumber(params.skala_baja) or 1, vx or 0, vz or 0)
-                    return true -- Ganti visual CEG. Damage dan audio tetap diproses Recoil.
+                    return true -- Ganti visual CEG. Damage tetap diproses Recoil.
                 end
             end
         end
@@ -47,6 +51,16 @@ if gadgetHandler:IsSyncedCode() then
 end
 
 local ledakan = {}
+local function visible(x, y, z)
+    local _, semuaTerlihat = sp.GetSpectatingState()
+    return semuaTerlihat or sp.IsPosInLos(x, y + 6, z, sp.GetMyAllyTeamID())
+end
+
+local function suaraBenturan(_, x, y, z, volume)
+    if visible(x, y, z) then
+        sp.PlaySoundFile("sounds/ledakan-permukaan.wav", volume, x, y, z, "battle")
+    end
+end
 local baris, piksel = 4, 256
 local profil = {
     tanah = {atlas = tanahAtlas, kolom = 8, setengah = 48, tinggi = 16, bias = 23,
@@ -74,8 +88,7 @@ local sisi = {
 }
 
 local function mulai(_, namaProfil, x, y, z, proyektil, frame, ukuran, vx, vz)
-    local _, semuaTerlihat = sp.GetSpectatingState()
-    if not semuaTerlihat and not sp.IsPosInLos(x, y + 6, z) then return end
+    if not visible(x, y, z) then return end
     local p = profil[namaProfil]
     local seed = (math.abs(proyektil) + frame * 131) % 2147483646 + 1
     local function acak(a, b)
@@ -106,10 +119,12 @@ end
 
 function gadget:Initialize()
     gadgetHandler:AddSyncAction(aksi, mulai)
+    gadgetHandler:AddSyncAction(audio, suaraBenturan)
 end
 
 function gadget:Shutdown()
     gadgetHandler:RemoveSyncAction(aksi)
+    gadgetHandler:RemoveSyncAction(audio)
 end
 
 local function gambarSerpih(terlihat)

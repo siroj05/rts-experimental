@@ -13,6 +13,10 @@ local nextMuzzle = muzzle
 local turretSpeed = math.rad(tonumber(def.customParams.turret_speed) or 143)
 local barrelSpeed = math.rad(60)
 local axes = {x_axis, y_axis, z_axis}
+local satuPutaran = 65536
+local lurus = satuPutaran * 3 / 360
+local putarPerFrame = distant and math.max(1, math.floor(def.turnRate + .5))
+local jangkauanLontar = distant and WeaponDefs[def.weapons[1].weaponDef].range
 local aimWatch
 local sides = {}
 for _, k in ipairs({"kiri", "kanan"}) do
@@ -83,6 +87,31 @@ local function stride(distance, weight)
     end
 end
 
+local function arahLontar(weapon, x, z, heading)
+    local tx, _, tz = lontar.target(unitID, weapon)
+    if not tx then return end
+    local dx, dz = tx - x, tz - z
+    local jarak = math.sqrt(dx * dx + dz * dz)
+    if jarak < lontar.jarakMin then return end
+    local target = sp.GetHeadingFromVector(dx, dz)
+    local selisih = (target - heading + satuPutaran / 2) % satuPutaran - satuPutaran / 2
+    return jarak, selisih
+end
+
+local function putarKeSasaran(x, z, heading)
+    local cmd = sp.GetUnitCurrentCommand(unitID)
+    if (cmd and cmd ~= CMD.ATTACK) or sp.GetUnitIsStunned(unitID) then return heading end
+    local jarak, selisih = arahLontar(1, x, z, heading)
+    if not jarak or jarak > jangkauanLontar or math.abs(selisih) <= lurus then return heading end
+    -- Recoil dapat berhenti berputar saat sasaran masuk kerucut bidik 3D.
+    -- Lanjutkan putaran sasis yang diam sampai azimut laras tetap selaras.
+    local langkah = math.max(-putarPerFrame, math.min(putarPerFrame, selisih))
+    local baru = (heading + langkah + satuPutaran / 2) % satuPutaran - satuPutaran / 2
+    local _, atas = sp.GetUnitVectors(unitID)
+    sp.SetUnitHeadingAndUpDir(unitID, baru, atas[1], atas[2], atas[3])
+    return baru
+end
+
 local function gerak()
     local px, _, pz = sp.GetUnitPosition(unitID)
     local lastHeading = sp.GetUnitHeading(unitID)
@@ -94,6 +123,9 @@ local function gerak()
         local heading = sp.GetUnitHeading(unitID)
         if not x or not fx or not heading then return end
         local dx, dz = x - px, z - pz
+        if distant and heading == lastHeading and math.abs(dx) + math.abs(dz) < .05 then
+            heading = putarKeSasaran(x, z, heading)
+        end
         if sides.kiri and sides.kanan then
             local roll = dx * fx + dz * fz
             local turn = ((heading - lastHeading + 32768) % 65536 - 32768) * (2 * math.pi / 65536)
@@ -139,14 +171,13 @@ end
 function script.AimWeapon(weapon, heading, pitch)
     Signal(1)
     SetSignalMask(1)
-    if not turret and math.abs(heading) > math.rad(14) then return false end
     if distant then
-        local tx, _, tz = lontar.target(unitID, weapon)
-        if not tx then return false end
         local x, _, z = sp.GetUnitPosition(unitID)
-        local range = math.sqrt((tx-x)^2 + (tz-z)^2)
-        if range < lontar.jarakMin then return false end
+        local range, selisih = arahLontar(weapon, x, z, sp.GetUnitHeading(unitID))
+        if not range or math.abs(selisih) > lurus then return false end
         pitch = lontar.sudut(range)
+    elseif not turret and math.abs(heading) > math.rad(14) then
+        return false
     end
     local min = math.rad(rig.min or -20)
     local max = math.rad(rig.max or 30)
@@ -169,7 +200,7 @@ local function recoil()
     Move(barrel, z_axis, 0, 12)
 end
 
-local function kilatan()
+local function kilatan(weapon)
     if not nextMuzzle or not GG.FxMoncongV2 then return end
     local x, y, z = sp.GetUnitPiecePosDir(unitID, nextMuzzle)
     local dx, dy, dz = sp.GetUnitDirection(unitID)
@@ -181,11 +212,11 @@ local function kilatan()
         dx, dy, dz = dx/len, dy/len, dz/len
     end
     local kecil = def.name == "robot_infanteri" or def.name == "pengintai" or def.name == "robot_roket"
-    GG.FxMoncongV2(unitID, kecil, x, y, z, dx, dy, dz)
+    GG.FxMoncongV2(unitID, kecil, x, y, z, dx, dy, dz, weapon)
 end
 
-function script.Shot()
-    kilatan()
+function script.Shot(weapon)
+    kilatan(weapon)
     if barrel then StartThread(recoil) end
 end
 

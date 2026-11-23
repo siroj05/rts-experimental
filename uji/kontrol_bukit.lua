@@ -232,7 +232,122 @@ local function lereng()
     end
 end
 
+local function artileri()
+    local jenis = defs.artileri_ringan.id
+    local senjata = WeaponDefNames.rts_artileri_ringan.id
+    local pabrik, unit, proyektil, benturan
+    local targetX, targetZ = 980, 1740
+
+    function gadget:Initialize()
+        Script.SetWatchProjectile(senjata, true)
+        Script.SetWatchExplosion(senjata, true)
+    end
+
+    function gadget:UnitFromFactory(id, def, _, factory)
+        if def ~= jenis or factory ~= pabrik then return end
+        unit = id
+        catat("ARTILERI_KELUAR", sp.GetGameFrame(), id)
+        arah(id, CMD.MOVE, 360, 1490)
+        arah(id, CMD.MOVE, 445, 1490, CMD.OPT_SHIFT)
+        arah(id, CMD.ATTACK, targetX, targetZ, CMD.OPT_SHIFT)
+    end
+
+    function gadget:ProjectileCreated(id, owner, weapon)
+        if owner ~= unit or weapon ~= senjata or proyektil then return end
+        proyektil = id
+        local x, _, z = sp.GetUnitPosition(owner)
+        local hadap = sp.GetUnitHeading(owner)
+        local beda = (sp.GetHeadingFromVector(targetX - x, targetZ - z) - hadap + 32768) % 65536 - 32768
+        catat("ARTILERI_TEMBAK", sp.GetGameFrame(), x, z, math.abs(beda) * 360 / 65536)
+        if jarak(x, z, 445, 1490) > 32 or math.abs(beda) * 360 / 65536 > 3 then
+            catat("GAGAL", "Artileri menembak sebelum tiba dan menghadap sasaran")
+        end
+    end
+
+    function gadget:Explosion(weapon, x, _, z, owner, id)
+        if weapon == senjata and owner == unit and id == proyektil then
+            benturan = jarak(x, z, targetX, targetZ)
+            catat("ARTILERI_BENTUR", sp.GetGameFrame(), benturan)
+        end
+        return false
+    end
+
+    return function(frame)
+        if frame == 5 then
+            pabrik = buat("pabrik_kendaraan", 560, 1120)
+            sp.GiveOrderToUnit(pabrik, -jenis, {}, 0)
+        elseif frame == 2100 then
+            if not benturan or benturan > 4 then
+                catat("GAGAL", "Tembakan artileri dari pabrik gagal mencapai sasaran", benturan)
+            end
+            selesai()
+        end
+    end
+end
+
+local function radar()
+    local lontar = VFS.Include("gamedata/lontar.lua")
+    local x, z = 565, 720
+    local lawan, artileriUji, pemindai, pengintai
+    local tembakRadar, tembakVisual = false, false
+    local senjata = WeaponDefNames.rts_artileri_ringan.id
+
+    function gadget:Initialize() Script.SetWatchProjectile(senjata, true) end
+
+    function gadget:ProjectileCreated(_, owner, weapon)
+        if owner ~= artileriUji or weapon ~= senjata then return end
+        local los = sp.GetUnitLosState(lawan, 0)
+        if los.los then tembakVisual = true
+        elseif los.radar then tembakRadar = true
+        else catat("GAGAL", "Artileri masih menembak setelah kontak hilang") end
+    end
+
+    local function cek(nama, los, blip, kunci)
+        local status = sp.GetUnitLosState(lawan, 0)
+        local jenis, _, target = sp.GetUnitWeaponTarget(artileriUji, 1)
+        local terkunci = jenis == 1 and target == lawan
+        local tx, _, tz = lontar.posisiUnit(artileriUji, lawan)
+        local _, _, _, _, _, _, asliX, _, asliZ = sp.GetUnitPosition(lawan, true, true)
+        local selisih = tx and jarak(tx, tz, asliX, asliZ)
+        catat("RADAR", nama, status.los or false, status.radar or false, terkunci, selisih or "nil")
+        if (status.los or false) ~= los or (status.radar or false) ~= blip or terkunci ~= kunci then
+            catat("GAGAL", "Status sensor atau kunci", nama)
+        end
+        if (los and (not selisih or selisih > .01)) or (blip and not los and (not selisih or selisih < 1))
+            or (not blip and not los and tx) then
+            catat("GAGAL", "Posisi bidik tidak sesuai visibilitas", nama)
+        end
+    end
+
+    return function(frame)
+        if frame == 5 then
+            local markas = sp.GetTeamUnitsByDefs(0, defs.inti_komando.id)[1]
+            sp.SetUnitSensorRadius(markas, "los", 100)
+            local gardu = buat("gardu", 360, 545)
+            pemindai = buat("radar", 405, 555)
+            artileriUji = buat("artileri_ringan", 220, z)
+            for _, id in ipairs({gardu, pemindai, artileriUji}) do sp.SetUnitSensorRadius(id, "los", 0) end
+            lawan = assert(sp.CreateUnit("medium_tank", x, sp.GetGroundHeight(x, z), z, 1, 1))
+            sp.SetUnitHealth(lawan, {health = 1000})
+            for _, id in ipairs({lawan, artileriUji}) do sp.GiveOrderToUnit(id, CMD.FIRE_STATE, {0}, 0) end
+        elseif frame == 90 then
+            sp.GiveOrderToUnit(artileriUji, CMD.ATTACK, {lawan}, 0)
+        elseif frame == 210 then
+            cek("kontak", false, true, true)
+            pengintai = buat("robot_insinyur", x + 100, z + 25)
+        elseif frame == 390 then
+            cek("terlihat", true, true, true)
+            sp.DestroyUnit(pengintai, false, true)
+            sp.DestroyUnit(pemindai, false, true)
+        elseif frame == 510 then
+            cek("hilang", false, false, false)
+            if not tembakRadar or not tembakVisual then catat("GAGAL", "Tembakan pada radar dan LOS wajib terjadi") end
+            selesai()
+        end
+    end
+end
+
 local siapkan = ({koridor = koridor, ["koridor-stop"] = koridor,
-    rally = rally, ["rally-barat"] = rally, lereng = lereng})[kasus]
+    rally = rally, ["rally-barat"] = rally, lereng = lereng, artileri = artileri, radar = radar})[kasus]
 local jalankan = siapkan()
 function gadget:GameFrame(frame) jalankan(frame) end

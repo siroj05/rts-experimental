@@ -22,11 +22,10 @@ return {
     model = "fx-tracer-meriam.glb",
     castshadow = false,
     explosiongenerator = "custom:rts_medium_hit",
-    customparams = {efek_benturan_tanah = "1", efek_benturan_baja = "1", kompensasi_tick = "1", fx_jejak = "meriam"},
+    customparams = {
+        efek_benturan_tanah = "1", efek_benturan_baja = "1", kompensasi_tick = "1", fx_jejak = "meriam",
+        suara_tembak = "sounds/medium_tank_tembak.wav", volume_tembak = 9, volume_bentur = 8,
+    },
     predictboost = .75,
-    soundstart = "sounds/medium_tank_tembak.wav",
-    soundhit = "sounds/ledakan-permukaan.wav",
-    soundstartvolume = 9,
-    soundhitvolume = 8,
     damage = {default = 110},
 }
