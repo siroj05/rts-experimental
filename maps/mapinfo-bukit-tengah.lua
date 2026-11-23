@@ -1,7 +1,7 @@
 return {
-    name = "Bukit Tengah 1v1",
+    name = "Central Hill 1v1",
     version = "1.0",
-    description = "Dua markas berhadapan, dengan jalur utara dan selatan mengitari punggungan batu.",
+    description = "Two opposing bases with northern and southern routes around a rocky ridge.",
     author = "RTS PC",
     modtype = 3,
     depend = {"Map Helper v1"},
@@ -15,9 +15,9 @@ return {
         [1] = {startPos = {x = 1712, z = 1024}},
     },
     terrainTypes = {
-        [0] = {name = "Tanah", receiveTracks = true, hardness = 1.0},
+        [0] = {name = "Ground", receiveTracks = true, hardness = 1.0},
         [1] = {
-            name = "Bukit Batu",
+            name = "Rocky Ridge",
             receiveTracks = false,
             hardness = 1.0,
             moveSpeeds = {tank = 0, kbot = 0, hover = 0, ship = 0},

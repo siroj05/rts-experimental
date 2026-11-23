@@ -11,7 +11,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT.parent / "rts-pc-v2/Assets/Konten/Unit/medium_tank"
-GAME = ROOT / "uji/BukitUji.sdd"
+GAME = ROOT / "game/RTSPC.sdd"
 ELMO_PER_METER = 8
 TILE_SIZE = 1024
 PADDING = 4
@@ -87,7 +87,7 @@ def track_poses(position, normal, part):
     left_normal = np.stack((-unit[:, 1], unit[:, 0]), axis=1)
 
     for phase in range(1, TRACK_PHASES):
-        next_distance = (distances - phase * pitch / TRACK_PHASES) % cumulative[-1]
+        next_distance = (distances + part.get("arah", -1) * phase * pitch / TRACK_PHASES) % cumulative[-1]
         nxt = np.searchsorted(cumulative[1:], next_distance, side="right")
         new_center = path[nxt] + (next_distance - cumulative[nxt])[:, None] * unit[nxt]
         cosine = np.einsum("ij,ij->i", unit[nearest], unit[nxt])
