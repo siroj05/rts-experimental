@@ -12,8 +12,8 @@ local function arah(unit, cmd, x, z, opsi)
     sp.GiveOrderToUnit(unit, cmd, {x, sp.GetGroundHeight(x, z), z}, opsi or 0)
 end
 
-local function buat(key, x, z)
-    return assert(sp.CreateUnit(key, x, sp.GetGroundHeight(x, z), z, 1, 0), key)
+local function buat(key, x, z, hadap)
+    return assert(sp.CreateUnit(key, x, sp.GetGroundHeight(x, z), z, hadap or 1, 0), key)
 end
 
 local function jarak(x, z, gx, gz)
@@ -25,7 +25,7 @@ local function selesai() catat("SELESAI", kasus) end
 local function koridor()
     local jenis = {"tank_ringan", "medium_tank", "medium_tank_destroyer", "pengintai",
         "artileri_ringan", "robot_insinyur", "robot_infanteri", "robot_roket"}
-    local unit = {}
+    local unit, tankSelatan, perintahBerhenti = {}, nil, nil
     local function mulai()
         for _, sisi in ipairs({"utara", "selatan"}) do
             local function cermin(z) return sisi == "utara" and z or Game.mapSizeZ - z end
@@ -39,6 +39,7 @@ local function koridor()
                 sp.GiveOrderToUnit(id, CMD.FIRE_STATE, {0}, 0)
                 unit[#unit + 1] = {id = id, key = key, sisi = sisi, gx = gx, gz = gz,
                     x = x, z = z, diam = 0, terlama = 0, dekatWaypoint = 0, jedaWaypoint = 0}
+                if sisi == "selatan" and key == "tank_ringan" then tankSelatan = unit[#unit] end
                 arah(id, CMD.MOVE, 790, cermin(417))
                 arah(id, CMD.MOVE, 1030, cermin(412), CMD.OPT_SHIFT)
                 arah(id, CMD.MOVE, gx, gz, CMD.OPT_SHIFT)
@@ -46,8 +47,17 @@ local function koridor()
             end
         end
     end
+    if kasus == "koridor-stop" then
+        function gadget:UnitCmdDone(id, _, _, cmd, params)
+            if not tankSelatan or id ~= tankSelatan.id or cmd ~= CMD.MOVE then return end
+            if params[1] == tankSelatan.gx and params[3] == tankSelatan.gz then
+                perintahBerhenti = sp.GetGameFrame() + 1
+            end
+        end
+    end
     return function(frame)
         if frame == 5 then mulai() end
+        if frame == perintahBerhenti then sp.GiveOrderToUnit(tankSelatan.id, CMD.STOP, {}, 0) end
         if frame < 6 or frame % 6 ~= 0 then return end
         for _, p in ipairs(unit) do
             local x, _, z = sp.GetUnitPosition(p.id)
@@ -88,8 +98,12 @@ local function koridor()
                 if p.terlama >= 60 then
                     catat("MACET", p.sisi, p.key, p.macX, p.macZ, p.sasaranX, p.sasaranZ, p.terlama)
                 end
-                if not p.tiba then catat("GAGAL", "tujuan", p.sisi, p.key, p.x, p.z, p.gx, p.gz) end
-                if p.tiba and jarak(p.x, p.z, p.gx, p.gz) > 40 then
+                if p == tankSelatan and kasus == "koridor-stop" then
+                    catat("STOP", perintahBerhenti or 0, p.tiba or 0)
+                    if not perintahBerhenti or p.tiba then catat("GAGAL", "Stop harus membatalkan pendekatan") end
+                elseif not p.tiba then
+                    catat("GAGAL", "tujuan", p.sisi, p.key, p.x, p.z, p.gx, p.gz)
+                elseif jarak(p.x, p.z, p.gx, p.gz) > 40 then
                     catat("GAGAL", "posisi akhir", p.sisi, p.key, p.x, p.z, p.gx, p.gz)
                 end
             end
@@ -99,9 +113,12 @@ local function koridor()
 end
 
 local function rally()
+    local hadap = kasus == "rally-barat" and 3 or 1
+    local arahKeluar = hadap == 1 and 1 or -1
+    local function cermin(x) return hadap == 1 and x or Game.mapSizeX - x end
     local pesanan = {
-        {"pabrik_kendaraan", 560, 1120, 700, 1120, {"pengintai", "medium_tank", "medium_tank_destroyer"}},
-        {"pabrik_robot", 560, 912, 705, 880, {"robot_insinyur", "robot_infanteri", "robot_roket"}},
+        {"pabrik_kendaraan", cermin(560), 1120, cermin(700), 1120, {"pengintai", "medium_tank", "medium_tank_destroyer"}},
+        {"pabrik_robot", cermin(560), 912, cermin(705), 880, {"robot_insinyur", "robot_infanteri", "robot_roket"}},
     }
     local pabrik, produk = {}, {}
     function gadget:UnitFromFactory(id, def, _, factory, _, userOrders)
@@ -110,19 +127,16 @@ local function rally()
         local x, _, z = sp.GetUnitPosition(id)
         local frame = sp.GetGameFrame()
         produk[id] = {key = UnitDefs[def].name, pabrik = p, lahir = frame}
+        sp.GiveOrderToUnit(id, CMD.FIRE_STATE, {0}, 0)
         catat("KELUAR", p[1], UnitDefs[def].name, frame, x, z, userOrders)
     end
     return function(frame)
         if frame == 5 then
             for _, r in ipairs({"ms", "es", "metal", "energy"}) do sp.SetTeamResource(0, r, 20000) end
             for _, p in ipairs(pesanan) do
-                local id = buat(p[1], p[2], p[3])
+                local id = buat(p[1], p[2], p[3], hadap)
                 pabrik[id] = p
                 local y = sp.GetGroundHeight(p[4], p[5])
-                local zTerlarang = p[1] == "pabrik_kendaraan" and 1160 or 865
-                catat("UJI_TITIK_RALLY", p[1], 780, zTerlarang,
-                    sp.TestMoveOrder(defs[p[6][1]].id, 780, sp.GetGroundHeight(780, zTerlarang), zTerlarang,
-                        0, 0, 0, true, false))
                 arah(id, CMD.MOVE, p[4], p[5])
                 local cmd, _, _, xRally, _, zRally = sp.GetUnitCurrentCommand(id, -1)
                 catat("TITIK_RALLY", p[1], cmd, xRally, zRally)
@@ -135,14 +149,19 @@ local function rally()
         if frame % 6 ~= 0 then return end
         for id, p in pairs(produk) do
             local x, _, z = sp.GetUnitPosition(id)
-            if not p.lewat and x > p.pabrik[2] + 64 then p.lewat = frame - p.lahir end
-            local sisa = jarak(x, z, p.pabrik[4], p.pabrik[5])
-            if not p.tiba and sisa <= 36 then p.tiba = frame - p.lahir end
-            p.x, p.z, p.terdekat = x, z, math.min(p.terdekat or sisa, sisa)
-            local cmd, opsi, tag, tx, _, tz = sp.GetUnitCurrentCommand(id)
-            if p.key == "robot_insinyur" and (p.tag ~= tag or not p.tercatat) then
-                p.tercatat, p.tag = true, tag
-                catat("PERINTAH_INSINYUR", frame, x, z, cmd or 0, tx or 0, tz or 0, opsi or 0)
+            if x then
+                if not p.lewat and (x - p.pabrik[2]) * arahKeluar > 64 then p.lewat = frame - p.lahir end
+                local sisa = jarak(x, z, p.pabrik[4], p.pabrik[5])
+                if not p.tiba and sisa <= 36 then p.tiba = frame - p.lahir end
+                p.x, p.z, p.terdekat = x, z, math.min(p.terdekat or sisa, sisa)
+                local cmd, opsi, tag, tx, _, tz = sp.GetUnitCurrentCommand(id)
+                if p.key == "robot_insinyur" and (p.tag ~= tag or not p.tercatat) then
+                    p.tercatat, p.tag = true, tag
+                    catat("PERINTAH_INSINYUR", frame, x, z, cmd or 0, tx or 0, tz or 0, opsi or 0)
+                end
+            elseif not p.hilang then
+                p.hilang = frame
+                catat("GAGAL", "produk hilang", p.pabrik[1], p.key, frame)
             end
         end
         if frame == 2700 then
@@ -213,6 +232,7 @@ local function lereng()
     end
 end
 
-local siapkan = ({koridor = koridor, rally = rally, lereng = lereng})[kasus]
+local siapkan = ({koridor = koridor, ["koridor-stop"] = koridor,
+    rally = rally, ["rally-barat"] = rally, lereng = lereng})[kasus]
 local jalankan = siapkan()
 function gadget:GameFrame(frame) jalankan(frame) end

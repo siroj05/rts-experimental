@@ -33,7 +33,9 @@ function script.Shot()
     local px, py, pz = sp.GetUnitPiecePosDir(unitID, laras)
     local dx, dy, dz = x - px, y - py, z - pz
     local panjang = math.sqrt(dx^2 + dy^2 + dz^2)
-    sp.SpawnCEG("rts_medium_muzzle", x, y, z, dx / panjang, dy / panjang, dz / panjang)
+    if panjang > 0 and GG.FxMoncongV2 then
+        GG.FxMoncongV2(unitID, false, x, y, z, dx / panjang, dy / panjang, dz / panjang)
+    end
 end
 
 function script.Killed() return 1 end

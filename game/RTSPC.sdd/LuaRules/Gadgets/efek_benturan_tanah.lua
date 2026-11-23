@@ -23,19 +23,23 @@ if gadgetHandler:IsSyncedCode() then
         local params = WeaponDefs[weapon].customParams
         local tanah = sp.GetGroundHeight(x, z)
         if tanah >= 0 and math.abs(y - tanah) <= 1.5 then
-            if not tanahAda or params.efek_benturan_tanah ~= "1" then return false end
-            SendToUnsynced(aksi, "tanah", x, tanah, z, proyektil, sp.GetGameFrame(),
-                tonumber(params.skala_benturan) or 1, 0, 0)
-            return true
-        end
-        if not bajaAda or params.efek_benturan_baja ~= "1" then return false end
-        for _, unit in ipairs(sp.GetUnitsInSphere(x, y, z, 48)) do
-            if unit ~= owner and not sp.GetUnitIsDead(unit) then
-                local vx, _, vz = sp.GetProjectileVelocity(proyektil)
-                SendToUnsynced(aksi, "baja", x, y, z, proyektil, sp.GetGameFrame(),
-                    tonumber(params.skala_baja) or 1, vx or 0, vz or 0)
-                return true -- Ganti visual CEG. Damage dan audio tetap diproses Recoil.
+            if tanahAda and params.efek_benturan_tanah == "1" then
+                SendToUnsynced(aksi, "tanah", x, tanah, z, proyektil, sp.GetGameFrame(),
+                    tonumber(params.skala_benturan) or 1, 0, 0)
+                return true
             end
+        elseif bajaAda and params.efek_benturan_baja == "1" then
+            for _, unit in ipairs(sp.GetUnitsInSphere(x, y, z, 48)) do
+                if unit ~= owner and not sp.GetUnitIsDead(unit) then
+                    local vx, _, vz = sp.GetProjectileVelocity(proyektil)
+                    SendToUnsynced(aksi, "baja", x, y, z, proyektil, sp.GetGameFrame(),
+                        tonumber(params.skala_baja) or 1, vx or 0, vz or 0)
+                    return true -- Ganti visual CEG. Damage dan audio tetap diproses Recoil.
+                end
+            end
+        end
+        if params.fx_jejak and GG.FxBenturanCadanganV2 then
+            return GG.FxBenturanCadanganV2(x, y, z, proyektil, params.fx_jejak == "kecil", y - tanah <= 1.5)
         end
         return false
     end

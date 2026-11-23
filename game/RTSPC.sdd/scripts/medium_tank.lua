@@ -127,7 +127,9 @@ function script.Shot()
     if x and px then
         local dx, dy, dz = x - px, y - py, z - pz
         local length = math.sqrt(dx * dx + dy * dy + dz * dz)
-        Spring.SpawnCEG("rts_medium_muzzle", x, y, z, dx / length, dy / length, dz / length)
+        if length > 0 and GG.FxMoncongV2 then
+            GG.FxMoncongV2(unitID, false, x, y, z, dx / length, dy / length, dz / length)
+        end
     end
     StartThread(recoil)
 end

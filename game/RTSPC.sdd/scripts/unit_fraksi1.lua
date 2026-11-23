@@ -169,21 +169,23 @@ local function recoil()
     Move(barrel, z_axis, 0, 12)
 end
 
-function script.FireWeapon()
-    if not nextMuzzle then return end
+local function kilatan()
+    if not nextMuzzle or not GG.FxMoncongV2 then return end
     local x, y, z = sp.GetUnitPiecePosDir(unitID, nextMuzzle)
     local dx, dy, dz = sp.GetUnitDirection(unitID)
     if barrel or turret then
         local px, py, pz = sp.GetUnitPiecePosDir(unitID, barrel or turret)
         dx, dy, dz = x - px, y - py, z - pz
         local len = math.sqrt(dx*dx + dy*dy + dz*dz)
+        if len <= 0 then return end
         dx, dy, dz = dx/len, dy/len, dz/len
     end
     local kecil = def.name == "robot_infanteri" or def.name == "pengintai" or def.name == "robot_roket"
-    sp.SpawnCEG(kecil and "rts_kecil_muzzle" or "rts_medium_muzzle", x, y, z, dx, dy, dz)
+    GG.FxMoncongV2(unitID, kecil, x, y, z, dx, dy, dz)
 end
 
 function script.Shot()
+    kilatan()
     if barrel then StartThread(recoil) end
 end
 

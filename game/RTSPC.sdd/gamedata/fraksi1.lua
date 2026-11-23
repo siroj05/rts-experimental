@@ -66,7 +66,8 @@ for key, r in pairs(records) do
         predictboost = w.bidik or 1, burst = w.laras or 1, burstrate = .1,
         rgbcolor = w.kecil and "1 .81 .52" or "1 .71 .32", size = w.kecil and .7 or 1.7,
         explosiongenerator = "custom:rts_medium_hit",
-        cegtag = w.artileri and "rts_artileri_trail" or "rts_medium_trail",
+        model = w.roket and "fx-tracer-roket.glb" or (w.kecil and "fx-tracer-kecil.glb" or "fx-tracer-meriam.glb"),
+        castshadow = false,
         soundstart = "sounds/" .. key .. "_tembak.wav",
         soundhit = "sounds/ledakan-permukaan.wav",
         soundstartvolume = w.kecil and 3 or 8, soundhitvolume = w.kecil and 2 or 7,
@@ -75,6 +76,7 @@ for key, r in pairs(records) do
             efek_benturan_baja = "1", skala_baja = w.kecil and ".42" or "1",
             skala_benturan = w.artileri and "1.7" or (w.roket and ".72" or "1"),
             lintasan_artileri = w.artileri and "1" or "0",
+            fx_jejak = w.artileri and "artileri" or (w.kecil and "kecil" or (w.roket and "roket" or "meriam")),
             kompensasi_tick = not (w.artileri or w.roket) and "1" or "0",
         },
     }

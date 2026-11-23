@@ -9,7 +9,7 @@ import time
 from uji_balance import ENGINE, GAME, ROOT
 
 
-CASES = ("koridor", "rally", "lereng")
+CASES = ("koridor", "koridor-stop", "rally", "rally-barat", "lereng")
 ERRORS = ("LUA_ERRRUN", "Fatal:", "stack traceback")
 
 

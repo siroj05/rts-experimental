@@ -39,7 +39,8 @@ local bangunan = {
         footprintx = 8, footprintz = 8, sightDistance = 240, levelGround = false, maxSlope = 8,
         builder = true, workerTime = 30, buildOptions = {"robot_insinyur", "robot_infanteri", "robot_roket"},
         canMove = true, speed = 0,
-        yardMap = "h" .. ("oooooooooooooooo"):rep(5) .. ("ooooooooccccoooo"):rep(11),
+        -- Kolom jalur yard map tercermin dari X soket model. Cocokkan dengan pintu di X +2,35 m.
+        yardMap = "h" .. ("oooooooooooooooo"):rep(5) .. ("ooooccccoooooooo"):rep(11),
     },
     ekstraktor_besi = {
         name = "Iron Extractor", description = "Place on an iron deposit. Produces 2.5 iron per second while powered",

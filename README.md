@@ -6,7 +6,7 @@ Lingkungan pengembangan Windows x64 untuk RTS PC dengan Recoil Engine.
 
 **Poin 1 selesai** · Roster dari daftar aktif V2 tersedia di Recoil. Ada 8 unit, 10 bangunan, dan bangkai untuk semuanya.
 
-**Poin 2 selesai diuji** · Dua temuan kontrol masih terbuka. Lihat [Regresi kontrol Central Hill](#regresi-kontrol-central-hill).
+**Poin 2 selesai** · Perbaikan tujuan akhir Light Tank dan rally Engineer Bot diuji ulang di Central Hill. Lihat [Regresi kontrol Central Hill](#regresi-kontrol-central-hill).
 
 **Ditunda atas arahan pengguna**
 
@@ -90,7 +90,7 @@ Data unit ada di `game/RTSPC.sdd/gamedata/unit/medium_tank.lua` dan data meriam 
 
 Roda dan track bergerak mengikuti jarak tempuh dan belokan setiap sisi. Track memakai lima pose geometri per sisi. Turret berputar, laras punya batas elevasi ±10°, dan proyektil berangkat dari moncong. Laras mundur 45 cm saat menembak.
 
-Suara meriam memakai rekaman Medium Tank dari v2, sedangkan suara benturan memakai rekaman ledakan permukaan dari pustaka proyek. Kilatan moncong dan jejak asap memakai CEG di `game/RTSPC.sdd/gamedata/explosions.lua`.
+Suara meriam memakai rekaman Medium Tank dari V2, sedangkan suara benturan memakai rekaman ledakan permukaan dari pustaka proyek. Kilatan moncong dan jejak asap berjalan lewat `game/RTSPC.sdd/LuaRules/Gadgets/efek_tempur_v2.lua`.
 
 Uji grafis mengonfirmasi roda berhenti saat kendaraan berhenti, proyektil keluar dari posisi moncong, dan perintah tembak ke balik bukit tertahan. [Kilatan moncong](uji/medium-tank-tembak.png)
 
@@ -105,6 +105,16 @@ Benturan baja memakai [flipbook 16 frame](game/RTSPC.sdd/bitmaps/fx/benturan-baj
 Model uji memakai skala 8 elmo per meter untuk peta kecil ini, dan atlas warna tim/emisi untuk shader bawaan Recoil. Konverter `tools/impor_medium_tank.py` membaca GLB dan pivot dari v2. Jalankan dengan Python, NumPy, dan Pillow untuk meregenerasi aset. Konverter menggabungkan submesh material menjadi satu primitive GLB per bagian untuk menghindari indeks segitiga yang tertimpa di importer Recoil 2026.09.03.
 
 Model markas dan bangunan ekonomi juga berasal dari aset v2. Konverter `tools/impor_markas.py` mengemas ulang tekstur, posisi soket, dan pose pintu pabrik. Ekstraktor dan pompa memakai pose model statis.
+
+### Efek tempur dari V2
+
+Meriam, roket, dan senjata ringan memilih model tracer 3D dan profil asap lewat `customparams.fx_jejak`. `python tools/impor_tracer_v2.py` membangun ulang tiga model tracer. Jejak asap mengikuti posisi proyektil Recoil. Untuk artileri jejak tertinggal sekitar 2,45 detik per gumpalan sambil hanyut.
+
+Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. Asap dan debu satu bidang per partikel menghadap kamera, seperti implementasi V2. Ledakan unit mencakup inti api, bola api dengan buntut asap, percikan, serpihan dan asap bangkai sampai 24 detik. Reklamasi bangkai menghentikan keluaran asap. Efek benturan tanah dan baja yang sudah dibake tetap dipakai dan senjata ringan mendapat percikan serta debu prosedural saat kena tanah.
+
+`sounds/unit-hancur-v2.ogg` berasal dari `Assets/Konten/Suara/Kandidat/244394.mp3` di V2, [Bang/Explosion Metallic](https://freesound.org/people/Werra/sounds/244394/) oleh Werra, CC0. Dipotong sampai 3 detik dengan pudar 80 ms mengikuti durasi di V2. Ini suara kandidat yang sudah dipakai sementara di V2.
+
+Konstruksi dan reklamasi masih memakai visual Recoil. Loop suara mesin kendaraan dari V2 belum dipindahkan. Shockwave dan kawah permanen belum aktif di V2.
 
 ### Impor Fraksi 1
 
@@ -186,19 +196,19 @@ Dalam uji kontrol terpisah, lima unit campuran tiba setelah **Move**, mengenai s
 
 ### Regresi kontrol Central Hill
 
-Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case koridor`, `--case rally`, atau `--case lereng`. Uji headless memakai salinan game, seed 1, dan AI skenario nonaktif. Log setiap skenario ada di `.cache/uji-kontrol/<case>/uji.log`. Perintah mengembalikan kode 1 bila ada baris `KONTROL, GAGAL`.
+Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case koridor`, `--case koridor-stop`, `--case rally`, `--case rally-barat`, atau `--case lereng`. Uji headless memakai salinan game, seed 1, dan AI skenario nonaktif. Log setiap skenario ada di `.cache/uji-kontrol/<case>/uji.log`. Perintah mengembalikan kode 1 bila ada baris `KONTROL, GAGAL`.
 
 | Uji | Hasil |
 | --- | --- |
-| Dua koridor, delapan jenis unit per sisi, dua waypoint dan satu Gudang di tiap sisi | 16 unit melewati garis tengah. Utara 8/8 dan selatan 7/8 masuk radius 4 m dari tujuan. |
-| Tiga produk Pabrik Kendaraan dan tiga produk Pabrik Robot | Keenam unit keluar dari tapak. Lima masuk radius 4,5 m dari rally. |
+| Dua koridor, delapan jenis unit per sisi, dua waypoint dan satu Gudang di tiap sisi | 16/16 unit masuk radius 4 m dari tujuan. Kasus `koridor-stop` memeriksa pembatalan pendekatan akhir dengan Stop. |
+| Tiga produk Pabrik Kendaraan dan tiga produk Pabrik Robot | 6/6 keluar dari tapak dan mencapai rally di tiap orientasi. `rally` menguji pabrik menghadap timur dan `rally-barat` memakai posisi cermin. |
 | Medium Tank menembak tanah datar, kaki bukit, dan lereng miring | Ketiga kasus mencatat 6/6 benturan. Selisih mendatar terbesar 0,022 elmo. Perintah ke lereng curam dan arah puncak menahan tembakan. |
 | Artileri Ringan ke lereng pada 73,75 m dan sasaran dekat pada 20 m | Tiga benturan ke lereng tercatat dalam jendela uji. Artileri menahan tembakan pada 20 m. |
 
-Temuan yang bisa diulang, dengan koordinat `(x, z)` dalam elmo dan 8 elmo per meter.
+Reproduksi perbaikan memakai koordinat `(x, z)` dalam elmo dan 8 elmo per meter.
 
-1. **Light Tank berhenti sebelum tujuan di selatan.** Jalankan `--case koridor`. Grup memakai Hold Fire dan lewat `(790, 1631)` lalu `(1030, 1636)`. Light Tank dari `(575, 1693)` kehilangan perintah Move pada sampel frame 666, masih 6,59 m dari `(1395, 1628)`. Posisi akhirnya `(1359.46, 1616.61)` atau sekitar 4,67 m dari tujuan.
-2. **Engineer Bot melewatkan rally Pabrik Robot.** Jalankan `--case rally`. Pabrik menghadap timur di `(560, 912)`, rally di `(705, 880)`, dan antrean Engineer Bot, Infantry Robot, Rocket Robot. Insinyur menerima perintah menuju rally pada frame 384. Pada frame 402 ia menjalankan perintah Move internal menjauh dari pintu, kemudian antreannya kosong pada frame 594. Ia berakhir di `(574.18, 985.66)`. Dua robot berikutnya sampai. Dalam uji pembanding dengan satu pesanan Engineer Bot, perintah rally juga habis dan unit berhenti di dekat titik keluarnya.
+1. **Tujuan akhir Light Tank di selatan.** Jalankan `--case koridor`. Grup memakai Hold Fire dan lewat `(790, 1631)` lalu `(1030, 1636)`. Light Tank dari `(575, 1693)` sebelumnya berhenti 4,67 m dari `(1395, 1628)` setelah Recoil menutup perintah Move terlalu dini. Sekarang, jika Move terakhir ditutup dengan status selesai di luar radius 4 m, jalur ke tujuan yang bisa dilalui diminta kembali satu kali setelah tank berhenti. Waypoint perantara tetap dijalankan oleh Recoil. Perintah baru membatalkan percobaan yang masih menunggu.
+2. **Rally Engineer Bot dari Pabrik Robot.** Jalankan `--case rally`. Pabrik menghadap timur di `(560, 912)`, rally di `(705, 880)`, dan antrean Engineer Bot, Infantry Robot, Rocket Robot. Sebelumnya bukaan di yard map berada di sisi yang berlawanan dari soket produksi. Kolom bukaan dicerminkan agar sejajar dengan pintu dan soket. Posisi model serta ukuran tapak 16 × 16 m tetap sama.
 
 ## Verifikasi
 
