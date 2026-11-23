@@ -2,6 +2,20 @@
 
 Lingkungan pengembangan Windows x64 untuk RTS PC dengan Recoil Engine.
 
+## Prioritas pengerjaan
+
+**Poin 1 selesai** · Roster dari daftar aktif V2 tersedia di Recoil. Ada 8 unit, 10 bangunan, dan bangkai untuk semuanya.
+
+**Poin 2 selesai diuji** · Dua temuan kontrol masih terbuka. Lihat [Regresi kontrol Central Hill](#regresi-kontrol-central-hill).
+
+**Ditunda atas arahan pengguna**
+
+- Poin 3 · Uji keseimbangan skirmish Easy, Normal, dan Hard.
+- Poin 4 · Pengaturan volume, tampilan, dan sensitivitas kamera.
+- Poin 5 · Paket build Windows dan uji instalasi dari folder bersih.
+- Poin 6 · Peta kedua dan pemilih peta di menu.
+- Uji performa pertempuran 50, 100, dan 200 unit pada zoom dekat dan jauh.
+
 ## Instalasi
 
 Jalankan dari folder ini dengan PowerShell. Installer memakai curl dan tar bawaan Windows, memverifikasi SHA-256, dan memasang paket lokal di `.deps/`.
@@ -32,7 +46,19 @@ Paket game utama ada di [game/RTSPC.sdd](game/RTSPC.sdd). Launcher menyalin pake
 
 ## Uji langsung
 
-Klik dua kali `Uji Bukit 1v1.cmd` untuk mulai dari markas di mode **Control Points**. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
+Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Pilihan terakhir disimpan saat memulai pertandingan. Panah atas/bawah dan Enter juga bisa dipakai.
+
+Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume**, **Restart Match**, atau **Back to Skirmish**. Memulai ulang mempertahankan tingkat kesulitan AI. Mode uji langsung tetap memakai kontrol Recoil.
+
+| AI | Interval keputusan | Ambang produksi pasukan |
+| --- | ---: | ---: |
+| Easy | 4 detik | 6 |
+| Normal | 2 detik | 9 |
+| Hard | 1 detik | 12 |
+
+Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
+
+Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang peta briefing dari relief Bukit. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
 
 ### Pembangunan dan produksi
 
@@ -43,7 +69,7 @@ Klik dua kali `Uji Bukit 1v1.cmd` untuk mulai dari markas di mode **Control Poin
 
 Setiap tim mulai dengan satu Inti Komando, satu Insinyur, 800 besi dan 2.600 energi. Lawan AI membangun pabrik kendaraan, pompa, hingga dua ekstraktor, dan pabrik robot saat stok cukup. Pabrik AI memilih jenis pasukan yang terjangkau dari daftar produksinya. Jika insinyurnya hancur dan markas masih ada, lawan dapat membuat pengganti.
 
-Untuk uji gerak dan tempur langsung dengan tiga Medium Tank per tim, jalankan `powershell -NoProfile -ExecutionPolicy Bypass -File .\uji-bukit.ps1 -Tempur`.
+Untuk melewati menu, jalankan `powershell -NoProfile -ExecutionPolicy Bypass -File .\uji-bukit.ps1 -Langsung`. Ganti `-Langsung` dengan `-Tempur` untuk langsung menguji tiga Medium Tank per tim.
 
 HUD menampilkan peran, HP, dan jangkauan senjata unit terpilih di kiri, perintah dan kartu bangun di tengah, serta sumber daya dan minimap A–D di kanan. Jangkauan Light Artillery ditulis 30–120 m. Perintah serang di dalam jarak minimum memunculkan pesan di atas panel perintah.
 
@@ -83,6 +109,12 @@ Model markas dan bangunan ekonomi juga berasal dari aset v2. Konverter `tools/im
 ### Impor Fraksi 1
 
 `tools/impor_unit_fraksi1.py` membangun aset dari model Fraksi 1 asli, bangkai dan audio dari v2, serta memasukkan model Pabrik Robot. Node.js memakai dependensi konverter v2 untuk dekode meshopt. Jalankan `python tools/buat_potret_hud.py` sesudahnya untuk memperbarui potret. Statistik roster ada di `game/RTSPC.sdd/gamedata/fraksi1.lua`.
+
+Daftar aktif V2 berisi **8 unit dan 10 bangunan**. `tools/impor_bangunan_fraksi1.py` mengimpor model Gardu, Gudang, Radar, Tiang Relay, dan Menara Pertahanan, serta bangkai seluruh bangunan. Semua bangunan selain Inti Komando tersedia lewat **Build** pada Engineer Bot. Inti Komando ada di awal ronde dan memproduksi Engineer Bot. Daftar produksi kedua pabrik mengikuti V2.
+
+Tiang Relay memperluas jaringan dari Command Core. Substation memberi listrik lokal dengan biaya 5 energi/detik. Radar dan Defense Tower memerlukan sambungan dan energi, sedangkan Depot menambah simpanan 3.000 besi dan 500 energi. Ini port fungsi roster. Pabrik dan ekstraktor memakai aturan energi V3 yang sudah ada, dan AI memakai rencana pembangunan Bukit yang sama. Model pompa dan ekstraktor memakai pose statis.
+
+Di Central Hill, uji roster memverifikasi kelima bangunan dapat dibangun, penambahan kapasitas Depot, putaran dan jangkauan deteksi Radar, tembakan Menara, putus sambung jaringan, dan bangkai 10 bangunan. Uji klik HUD memeriksa sembilan kartu Build, dan regresi produksi memverifikasi kedelapan unit keluar dari pabrik.
 
 Model hidup memakai warna tim, roda/track berfase, dan bagian bidik terpisah sesuai model. Robot Roket memakai pose langkah dari Blender, sedangkan Robot Infanteri memakai langkah prosedural. Recoil memakai atlas warna tim/refleksi/emisi bawaannya, dengan tekstur hasil impor yang dipadatkan agar semua model dapat dimuat bersamaan.
 
@@ -151,6 +183,22 @@ Uji grafis memakai klik mouse untuk kartu HUD dan perintah medan. Skrip mengatur
 | Ekonomi dulu | 94 dtk | 111 dtk | 50–290 | 130–1.000 |
 
 Dalam uji kontrol terpisah, lima unit campuran tiba setelah **Move**, mengenai sasaran saat menjalankan **Attack Move**, menerima perintah fokus tembak, lalu kembali saat pemain klik kanan ke arah mundur. Light Tank keluar dari pabrik dan tiba di rally. Uji HUD memeriksa penanda rally, pesan **Low iron**, rentang 30–120 m, dan peringatan artileri saat sasaran berada di bawah 30 m. Log dan tangkapan layar tersedia lokal di `.cache/kontrol-v7-*-1280x800/`.
+
+### Regresi kontrol Central Hill
+
+Jalankan `python tools/uji_kontrol.py`. Pilih satu skenario lewat `--case koridor`, `--case rally`, atau `--case lereng`. Uji headless memakai salinan game, seed 1, dan AI skenario nonaktif. Log setiap skenario ada di `.cache/uji-kontrol/<case>/uji.log`. Perintah mengembalikan kode 1 bila ada baris `KONTROL, GAGAL`.
+
+| Uji | Hasil |
+| --- | --- |
+| Dua koridor, delapan jenis unit per sisi, dua waypoint dan satu Gudang di tiap sisi | 16 unit melewati garis tengah. Utara 8/8 dan selatan 7/8 masuk radius 4 m dari tujuan. |
+| Tiga produk Pabrik Kendaraan dan tiga produk Pabrik Robot | Keenam unit keluar dari tapak. Lima masuk radius 4,5 m dari rally. |
+| Medium Tank menembak tanah datar, kaki bukit, dan lereng miring | Ketiga kasus mencatat 6/6 benturan. Selisih mendatar terbesar 0,022 elmo. Perintah ke lereng curam dan arah puncak menahan tembakan. |
+| Artileri Ringan ke lereng pada 73,75 m dan sasaran dekat pada 20 m | Tiga benturan ke lereng tercatat dalam jendela uji. Artileri menahan tembakan pada 20 m. |
+
+Temuan yang bisa diulang, dengan koordinat `(x, z)` dalam elmo dan 8 elmo per meter.
+
+1. **Light Tank berhenti sebelum tujuan di selatan.** Jalankan `--case koridor`. Grup memakai Hold Fire dan lewat `(790, 1631)` lalu `(1030, 1636)`. Light Tank dari `(575, 1693)` kehilangan perintah Move pada sampel frame 666, masih 6,59 m dari `(1395, 1628)`. Posisi akhirnya `(1359.46, 1616.61)` atau sekitar 4,67 m dari tujuan.
+2. **Engineer Bot melewatkan rally Pabrik Robot.** Jalankan `--case rally`. Pabrik menghadap timur di `(560, 912)`, rally di `(705, 880)`, dan antrean Engineer Bot, Infantry Robot, Rocket Robot. Insinyur menerima perintah menuju rally pada frame 384. Pada frame 402 ia menjalankan perintah Move internal menjauh dari pintu, kemudian antreannya kosong pada frame 594. Ia berakhir di `(574.18, 985.66)`. Dua robot berikutnya sampai. Dalam uji pembanding dengan satu pesanan Engineer Bot, perintah rally juga habis dan unit berhenti di dekat titik keluarnya.
 
 ## Verifikasi
 

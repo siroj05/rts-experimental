@@ -45,7 +45,8 @@ local units, weapons, movement = {}, {}, {}
 local armor = {
     ringan = {"robot_insinyur"},
     berat = {"medium_tank"},
-    bangunan = {"inti_komando", "pabrik_kendaraan", "pabrik_robot", "ekstraktor_besi", "pompa_minyak"},
+    bangunan = {"inti_komando", "pabrik_kendaraan", "pabrik_robot", "ekstraktor_besi", "pompa_minyak",
+        "gardu", "gudang", "tiang_relay", "radar", "menara_pertahanan"},
 }
 
 for key, r in pairs(records) do

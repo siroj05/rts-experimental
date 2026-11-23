@@ -1,4 +1,4 @@
-param([switch]$Tempur)
+param([switch]$Tempur, [switch]$Langsung)
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,8 +16,18 @@ $games = Join-Path $engine 'games'
 [IO.Directory]::CreateDirectory($games) | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'maps/bukit-tengah-1v1.sdz') -Destination $maps -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'game/RTSPC.sdd') -Destination $games -Recurse -Force
-$scenario = if ($Tempur) { 'uji/bukit-1v1.txt' } else { 'game/RTSPC.sdd/gamedata/skenario/bukit-start.txt' }
-$start = Join-Path $PSScriptRoot $scenario
-Start-Process -FilePath $exe -WorkingDirectory $engine -WindowStyle Normal -ArgumentList @(
-    '--isolation', '--only-local', '--window', ('"{0}"' -f $start)
-)
+$arguments = @('--isolation', '--only-local', '--window')
+if ($Tempur -or $Langsung) {
+    $scenario = if ($Tempur) { 'uji/bukit-1v1.txt' } else { 'game/RTSPC.sdd/gamedata/skenario/bukit-start.txt' }
+    $arguments += ('"{0}"' -f (Join-Path $PSScriptRoot $scenario))
+} else {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'menu/RTSPCMenu.sdd') -Destination $games -Recurse -Force
+    $luaMenu = Join-Path $games 'RTSPCMenu.sdd/LuaMenu'
+    foreach ($source in @('skenario/bukit.lua', 'skenario/bukit-start.txt', 'profil_ai.lua')) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot "game/RTSPC.sdd/gamedata/$source") -Destination $luaMenu -Force
+    }
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'maps/mapinfo-bukit-tengah.lua') `
+        -Destination (Join-Path $luaMenu 'mapinfo.lua') -Force
+    $arguments += @('--menu', 'RTSPCMenu.sdd')
+}
+Start-Process -FilePath $exe -WorkingDirectory $engine -WindowStyle Normal -ArgumentList $arguments

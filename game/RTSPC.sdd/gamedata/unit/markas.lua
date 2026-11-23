@@ -1,5 +1,5 @@
 -- Skala 8 elmo/m. Satu petak tapak bangunan Recoil = 16 elmo.
-return {
+local bangunan = {
     inti_komando = {
         name = "Command Core", description = "Headquarters and Engineer Bot production",
         objectname = "inti-komando.glb", script = "inti_komando.lua", category = "DARAT",
@@ -18,7 +18,8 @@ return {
         speed = 36, maxAcc = 64 / (30 * 30), maxDec = 0.15, turnRate = 65536 / 30,
         sightDistance = 240,
         builder = true, workerTime = 30, buildDistance = 80,
-        buildOptions = {"pabrik_kendaraan", "pabrik_robot", "ekstraktor_besi", "pompa_minyak"},
+        buildOptions = {"pabrik_kendaraan", "pabrik_robot", "ekstraktor_besi", "pompa_minyak",
+            "tiang_relay", "gardu", "gudang", "radar", "menara_pertahanan"},
     },
     pabrik_kendaraan = {
         name = "Vehicle Factory", description = "Produces vehicles and artillery",
@@ -55,3 +56,34 @@ return {
         energyMake = 10,
     },
 }
+
+local pelengkap = {
+    {"tiang_relay", "Relay Mast", "Extends power from the Command Core", 250, 15, 37, 3, 4, 20},
+    {"gardu", "Substation", "Powers nearby buildings using 5 energy/s", 600, 60, 150, 8, 4, 20},
+    {"gudang", "Depot", "Stores 3,000 iron and 500 energy", 1500, 100, 225, 12, 8, 25},
+    {"radar", "Radar", "Reveals enemy radar contacts while powered", 600, 60, 375, 12, 4, 40},
+    {"menara_pertahanan", "Defense Tower", "Fires HE bursts at ground targets while powered", 2000, 200, 600, 22, 4, 100},
+}
+
+for _, d in ipairs(pelengkap) do
+    local key, name, description, hp, iron, energy, seconds, footprint, sight = unpack(d)
+    local model = key:gsub("_", "-")
+    bangunan[key] = {
+        name = name, description = description, category = "DARAT",
+        objectname = model .. ".glb", buildPic = model .. ".png", script = "bangunan_statis.lua",
+        health = hp, metalCost = iron, energyCost = energy, buildTime = seconds * 30,
+        footprintx = footprint, footprintz = footprint, sightDistance = sight * 8,
+        levelGround = false, maxSlope = 8,
+    }
+end
+
+bangunan.gudang.metalStorage = 3000
+bangunan.gudang.energyStorage = 500
+bangunan.radar.script = "radar.lua"
+bangunan.menara_pertahanan.script = "menara_pertahanan.lua"
+bangunan.menara_pertahanan.canAttack = true
+bangunan.menara_pertahanan.weapons = {{name = "rts_meriam_menara", onlyTargetCategory = "DARAT"}}
+-- The lattice mast reserves its full footprint while keeping the outer paths open.
+bangunan.tiang_relay.yardMap = "h" .. ("bbbbbbbb"):rep(2) .. ("bboooobb"):rep(4) .. ("bbbbbbbb"):rep(2)
+
+return bangunan

@@ -14,7 +14,7 @@ from impor_medium_tank import GAME, load_glb
 MODELS = (
     "medium-tank", "robot-insinyur", "inti-komando", "pabrik-kendaraan", "ekstraktor-besi", "pompa-minyak",
     "tank-ringan", "medium-tank-destroyer", "pengintai", "artileri-ringan", "robot-infanteri", "robot-roket",
-    "pabrik-robot",
+    "pabrik-robot", "tiang-relay", "gardu", "gudang", "radar", "menara-pertahanan",
 )
 SIZE = 256
 

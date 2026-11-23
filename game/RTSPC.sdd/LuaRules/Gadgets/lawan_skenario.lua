@@ -6,6 +6,8 @@ if not gadgetHandler:IsSyncedCode() then return end
 
 local sp = Spring
 local opsi = sp.GetModOptions()
+local profil = VFS.Include("gamedata/profil_ai.lua")
+local tingkat = profil[opsi.tingkat_ai] or profil.normal
 local aturan = VFS.Include("gamedata/skenario.lua")
 if not aturan or not aturan.lawan then return false end
 local tim, hadap = aturan.lawan.tim, aturan.lawan.hadap
@@ -26,8 +28,8 @@ for _, id in ipairs(tempur) do tempurSet[id] = true end
 local kendaraan = {"medium_tank", "tank_ringan", "medium_tank_destroyer", "pengintai", "artileri_ringan"}
 local robot = {"robot_infanteri", "robot_roket"}
 local indeksKendaraan, indeksRobot = 1, 1
-local batasPasukan = 9
-local interval = Game.gameSpeed * 2
+local batasPasukan = tingkat.batasPasukan
+local interval = Game.gameSpeed * tingkat.interval
 local posisi = {{0, 0}, {0, 48}, {0, -48}, {48, 0}, {-48, 0}}
 local rencanaBangun = {}
 for i, bangunan in ipairs(aturan.lawan.bangunan) do
@@ -144,7 +146,8 @@ local function nilaiTitik(titik, index)
     elseif pemilik == -1 then bobot = 96
     else bobot = pernahDikuasai[index] and 110 or 83 end
     local bantuan = sengketa or musuhTerlihat > 0 or (pemilik == tim and penantang == 0)
-    return {bobot = bobot, kapasitas = bantuan and math.max(2, math.min(3, musuhTerlihat + 1)) or 1,
+    local kapasitas = bantuan and math.max(2, math.min(3, musuhTerlihat + 1)) + tingkat.bantuan or 1
+    return {bobot = bobot, kapasitas = kapasitas,
         ditugaskan = 0, slot = {}}
 end
 

@@ -41,3 +41,5 @@ function script.Deactivate()
     SetUnitValue(COB.INBUILDSTANCE, 0)
     StartThread(gerakkanPintu, 1)
 end
+
+function script.Killed() return 1 end

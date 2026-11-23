@@ -15,3 +15,5 @@ end
 function script.Deactivate()
     SetUnitValue(COB.INBUILDSTANCE, 0)
 end
+
+function script.Killed() return 1 end

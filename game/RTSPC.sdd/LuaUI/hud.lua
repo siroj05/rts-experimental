@@ -22,6 +22,8 @@ local peran = {
     inti_komando = "Headquarters", pabrik_kendaraan = "Vehicle production",
     pabrik_robot = "Robot production",
     ekstraktor_besi = "Iron production", pompa_minyak = "Energy generation",
+    tiang_relay = "Power relay", gardu = "Local power supply", gudang = "Resource storage",
+    radar = "Early warning", menara_pertahanan = "Ground defense",
 }
 local order = {
     {CMD.MOVE, "Move", "Click a destination."},
@@ -47,7 +49,7 @@ local aksi = {}
 local waktuCek = 0
 local lebarLama, tinggiLama
 local aktif = false
-local mulaiUlang
+local mulaiUlang, kembaliMenu
 
 local function isi(c)
     gl.Color(c[1], c[2], c[3], c[4] or 1)
@@ -125,9 +127,10 @@ local function panelPos(lebar, tinggi)
         math.floor(m.w * skala), math.floor(m.h * skala))
 end
 
-function hud.Initialize(restart)
+function hud.Initialize(restart, back)
     aktif = true
     mulaiUlang = restart
+    kembaliMenu = back
     sp.SendCommands({"resbar 0", "tooltip 0", "clock 0", "console 0", "info 0", "minimap min 0", "minimap max 0",
         "endgraph 0"})
     sp.SetDrawSelectionInfo(false)
@@ -169,13 +172,15 @@ function hud.AttackFeedback(params, options)
 end
 
 local function rentangSenjata(def)
-    local jarak = 0
+    local jarak, jarakMin = 0, def.name == "artileri_ringan" and minArtileri or 0
     for _, slot in ipairs(def.weapons) do
-        jarak = math.max(jarak, WeaponDefs[slot.weaponDef].range)
+        local weapon = WeaponDefs[slot.weaponDef]
+        jarak = math.max(jarak, weapon.range)
+        jarakMin = math.max(jarakMin, tonumber(weapon.customParams.jarak_min) or 0)
     end
     if jarak == 0 then return end
-    if def.name == "artileri_ringan" then
-        return string.format("Range %d–%d m", minArtileri / elmoPerMeter, jarak / elmoPerMeter)
+    if jarakMin > 0 then
+        return string.format("Range %d–%d m", jarakMin / elmoPerMeter, jarak / elmoPerMeter)
     end
     return string.format("Range %d m", jarak / elmoPerMeter)
 end
@@ -330,7 +335,10 @@ local function gambarPilihan(r, mx, my)
         bar(x + 83, y + 33, 132, 6, data.hp / math.max(1, data.maks),
             data.hp < data.maks * 0.35 and warna.merah or warna.teal)
         local rentang = rentangSenjata(def)
-        if rentang then teks(rentang, x + 83, y + 16, 11, warna.teal, nil, 132) end
+        local daya = sp.GetUnitRulesParam(data.unit, "daya_fraksi1")
+        if daya == 0 then teks("No power", x + 83, y + 16, 11, warna.besi)
+        elseif rentang then teks(rentang, x + 83, y + 16, 11, warna.teal, nil, 132)
+        elseif daya == 1 then teks("Powered", x + 83, y + 16, 11, warna.teal) end
         return
     end
 
@@ -397,7 +405,14 @@ local function gambarTombol(r, mx, my)
         sudut(bx, by, lebar, tinggi, 5, dasar)
         if dipilih then kotak(bx + 4, by, lebar - 8, 2, warna.teal) end
         local bantuan = item.info
-        if item.def then
+        if item.def and dua then
+            local def = item.def
+            potret(def, bx + 3, by + 2, 26)
+            teks(def.humanName, bx + 33, by + 16, 12, nil, nil, lebar - 37)
+            teks(angka(def.metalCost) .. " I  /  " .. angka(def.energyCost) .. " E",
+                bx + 33, by + 4, 10, warna.redup, nil, lebar - 37)
+            bantuan = def.tooltip or def.humanName
+        elseif item.def then
             local def = item.def
             sudut(bx + 5, by + 5, 51, tinggi - 10, 4, warna.gelap)
             potret(def, bx + 6, by + 6, 48)
@@ -514,10 +529,18 @@ local function gambarHasil(hasil, warnaTim, w, h)
     teks(caption, x + 180, y + 105, 26, warnaTim[hasil] or warna.putih, "c")
     teks("Blue  " .. angka(a) .. "   /   " .. angka(b) .. "  Red", x + 180, y + 77, 15, warna.redup, "c")
     if mulaiUlang then
-        sudut(x + 111, y + 22, 138, 34, 4, warna.teal)
-        teks("Play Again", x + 180, y + 33, 15, warna.gelap, "c")
-        tambahAksi(x + 111, y + 22, 138, 34, function(button)
+        local bx = kembaliMenu and x + 23 or x + 111
+        sudut(bx, y + 22, 138, 34, 4, warna.teal)
+        teks("Play Again", bx + 69, y + 33, 15, warna.gelap, "c")
+        tambahAksi(bx, y + 22, 138, 34, function(button)
             if button == 1 then mulaiUlang() end
+        end)
+    end
+    if kembaliMenu then
+        sudut(x + 173, y + 22, 164, 34, 4, warna.lapis)
+        teks("Back to Skirmish", x + 255, y + 33, 15, warna.putih, "c")
+        tambahAksi(x + 173, y + 22, 164, 34, function(button)
+            if button == 1 then kembaliMenu() end
         end)
     end
 end

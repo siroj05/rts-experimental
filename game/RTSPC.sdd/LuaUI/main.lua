@@ -10,7 +10,13 @@ local warnaTim = {
 local namaTim = {[-1] = "Neutral", [0] = "Blue", [1] = "Red"}
 local warnaRebutan = {1.00, 0.79, 0.42}
 local tinggiTiang = 45
-local ekonomi = Spring.GetModOptions().ekonomi == "1"
+local opsi = Spring.GetModOptions()
+local ekonomi = opsi.ekonomi == "1"
+local function kembaliSkirmish() Spring.Reload("") end
+local dariSkirmish = opsi.kembali_menu == "1" and not Spring.IsReplay()
+local menuJeda = dariSkirmish and VFS.Include("LuaUI/menu_jeda.lua")
+local esc = Spring.GetKeyCode("escape")
+local profiles = VFS.Include("gamedata/profil_ai.lua")
 local ekstraktor
 for id, def in pairs(UnitDefs) do
     if def.name == "ekstraktor_besi" then
@@ -24,6 +30,12 @@ local shown = false
 
 local function mulaiUlang()
     local start = VFS.LoadFile("gamedata/skenario/bukit-start.txt")
+    if profiles[opsi.tingkat_ai] then
+        start = start:gsub("ekonomi=1;", "ekonomi=1;tingkat_ai=" .. opsi.tingkat_ai .. ";")
+    end
+    if opsi.kembali_menu == "1" then
+        start = start:gsub("ekonomi=1;", "ekonomi=1;kembali_menu=1;")
+    end
     if not ekonomi then start = start:gsub("ekonomi=1;", "") end
     Spring.Reload(start)
 end
@@ -51,7 +63,7 @@ function Update()
         local view = {name = "ov", px = Game.mapSizeX * 0.5, py = 0, pz = Game.mapSizeZ * 0.5}
         Spring.SetCameraState(view, 0)
     end
-    hud.Initialize(mulaiUlang)
+    hud.Initialize(mulaiUlang, dariSkirmish and kembaliSkirmish)
     shown = true
 end
 
@@ -65,14 +77,32 @@ function LayoutButtons()
 end
 
 function IsAbove(x, y)
-    return hud.IsAbove(x, y)
+    return (menuJeda and menuJeda.terbuka) or hud.IsAbove(x, y)
 end
 
 function MousePress(x, y, button)
+    if menuJeda and menuJeda.terbuka then return menuJeda.MousePress(x, y, button) end
     return hud.MousePress(x, y, button)
 end
 
+function MouseRelease(x, y, button)
+    if menuJeda and menuJeda.terbuka then return menuJeda.MouseRelease(x, y, button) end
+end
+
+function MouseWheel()
+    return menuJeda and menuJeda.terbuka or false
+end
+
+function KeyPress(key, _, ulang)
+    if not menuJeda or not shown then return false end
+    if menuJeda.terbuka then return menuJeda.KeyPress(key, ulang) end
+    if key ~= esc or baca("titik_pemenang") ~= -1 then return false end
+    if not ulang then menuJeda.Buka(mulaiUlang, kembaliSkirmish) end
+    return true
+end
+
 function CommandNotify(cmd, params, options)
+    if menuJeda and menuJeda.terbuka then return true end
     if cmd == CMD.ATTACK then hud.AttackFeedback(params, options) end
     if not ekonomi or cmd ~= -ekstraktor or #params < 3 then return false end
     local x, z, hadap = params[1], params[3], params[4] or 0
@@ -156,5 +186,6 @@ function DrawScreen(lebar, tinggi)
     end
 
     hud.Draw(lebar, tinggi, aturan, status, warnaTim)
+    if menuJeda and menuJeda.terbuka then menuJeda.Draw() end
     gl.Color(1, 1, 1, 1)
 end

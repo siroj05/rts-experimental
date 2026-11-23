@@ -1,0 +1,218 @@
+function gadget:GetInfo()
+    return {name = "Central Hill Controls Test", layer = -5, enabled = true}
+end
+if not gadgetHandler:IsSyncedCode() then return false end
+
+local sp, defs = Spring, UnitDefNames
+local kasus = sp.GetModOptions().uji_kontrol
+if not kasus then return false end
+
+local function catat(...) sp.Echo("KONTROL", ...) end
+local function arah(unit, cmd, x, z, opsi)
+    sp.GiveOrderToUnit(unit, cmd, {x, sp.GetGroundHeight(x, z), z}, opsi or 0)
+end
+
+local function buat(key, x, z)
+    return assert(sp.CreateUnit(key, x, sp.GetGroundHeight(x, z), z, 1, 0), key)
+end
+
+local function jarak(x, z, gx, gz)
+    return math.sqrt((x - gx)^2 + (z - gz)^2)
+end
+
+local function selesai() catat("SELESAI", kasus) end
+
+local function koridor()
+    local jenis = {"tank_ringan", "medium_tank", "medium_tank_destroyer", "pengintai",
+        "artileri_ringan", "robot_insinyur", "robot_infanteri", "robot_roket"}
+    local unit = {}
+    local function mulai()
+        for _, sisi in ipairs({"utara", "selatan"}) do
+            local function cermin(z) return sisi == "utara" and z or Game.mapSizeZ - z end
+            local depo = cermin(304)
+            assert(sp.TestBuildOrder(defs.gudang.id, 1024, sp.GetGroundHeight(1024, depo), depo, 1) > 0)
+            buat("gudang", 1024, depo)
+            for i, key in ipairs(jenis) do
+                local x, z = 575 + ((i - 1) % 2) * 60, cermin(355 + math.floor((i - 1) / 2) * 36)
+                local gx, gz = 1395 + ((i - 1) % 2) * 45, cermin(420 + math.floor((i - 1) / 2) * 45)
+                local id = buat(key, x, z)
+                sp.GiveOrderToUnit(id, CMD.FIRE_STATE, {0}, 0)
+                unit[#unit + 1] = {id = id, key = key, sisi = sisi, gx = gx, gz = gz,
+                    x = x, z = z, diam = 0, terlama = 0, dekatWaypoint = 0, jedaWaypoint = 0}
+                arah(id, CMD.MOVE, 790, cermin(417))
+                arah(id, CMD.MOVE, 1030, cermin(412), CMD.OPT_SHIFT)
+                arah(id, CMD.MOVE, gx, gz, CMD.OPT_SHIFT)
+                catat("RUTE", sisi, key, x, z, gx, gz)
+            end
+        end
+    end
+    return function(frame)
+        if frame == 5 then mulai() end
+        if frame < 6 or frame % 6 ~= 0 then return end
+        for _, p in ipairs(unit) do
+            local x, _, z = sp.GetUnitPosition(p.id)
+            if not p.lintas and x >= 1024 then p.lintas = z end
+            local sisa = jarak(x, z, p.gx, p.gz)
+            if not p.tiba and sisa <= 32 then p.tiba = frame end
+            local cmd, _, _, tx, _, tz = sp.GetUnitCurrentCommand(p.id)
+            if p.tiba and sisa > 40 and not p.menjauh then
+                p.menjauh = frame
+                catat("MENJAUH", p.sisi, p.key, frame, x, z, cmd or 0, tx or 0, tz or 0)
+            end
+            if p.lintas and not p.tiba and not cmd and not p.berhenti then
+                p.berhenti = frame
+                catat("BERHENTI", p.sisi, p.key, frame, x, z, sisa)
+            end
+            local pelan = jarak(x, z, p.x, p.z) < 1
+            if cmd == CMD.MOVE and tx and tz and jarak(x, z, tx, tz) > 24 and pelan then
+                p.diam = p.diam + 6
+                if p.diam > p.terlama then
+                    p.terlama, p.macX, p.macZ = p.diam, x, z
+                    p.sasaranX, p.sasaranZ = tx, tz
+                end
+            else
+                p.diam = 0
+            end
+            if cmd == CMD.MOVE and (tx == 790 or tx == 1030) and jarak(x, z, tx, tz) <= 24 and pelan then
+                p.dekatWaypoint = p.dekatWaypoint + 6
+                p.jedaWaypoint = math.max(p.jedaWaypoint, p.dekatWaypoint)
+            else
+                p.dekatWaypoint = 0
+            end
+            p.x, p.z = x, z
+        end
+        if frame == 2700 then
+            for _, p in ipairs(unit) do
+                catat("TIBA", p.sisi, p.key, p.tiba or 0, math.floor(jarak(p.x, p.z, p.gx, p.gz) + .5),
+                    p.lintas or -1, p.terlama, p.jedaWaypoint)
+                if p.terlama >= 60 then
+                    catat("MACET", p.sisi, p.key, p.macX, p.macZ, p.sasaranX, p.sasaranZ, p.terlama)
+                end
+                if not p.tiba then catat("GAGAL", "tujuan", p.sisi, p.key, p.x, p.z, p.gx, p.gz) end
+                if p.tiba and jarak(p.x, p.z, p.gx, p.gz) > 40 then
+                    catat("GAGAL", "posisi akhir", p.sisi, p.key, p.x, p.z, p.gx, p.gz)
+                end
+            end
+            selesai()
+        end
+    end
+end
+
+local function rally()
+    local pesanan = {
+        {"pabrik_kendaraan", 560, 1120, 700, 1120, {"pengintai", "medium_tank", "medium_tank_destroyer"}},
+        {"pabrik_robot", 560, 912, 705, 880, {"robot_insinyur", "robot_infanteri", "robot_roket"}},
+    }
+    local pabrik, produk = {}, {}
+    function gadget:UnitFromFactory(id, def, _, factory, _, userOrders)
+        local p = pabrik[factory]
+        if not p then return end
+        local x, _, z = sp.GetUnitPosition(id)
+        local frame = sp.GetGameFrame()
+        produk[id] = {key = UnitDefs[def].name, pabrik = p, lahir = frame}
+        catat("KELUAR", p[1], UnitDefs[def].name, frame, x, z, userOrders)
+    end
+    return function(frame)
+        if frame == 5 then
+            for _, r in ipairs({"ms", "es", "metal", "energy"}) do sp.SetTeamResource(0, r, 20000) end
+            for _, p in ipairs(pesanan) do
+                local id = buat(p[1], p[2], p[3])
+                pabrik[id] = p
+                local y = sp.GetGroundHeight(p[4], p[5])
+                local zTerlarang = p[1] == "pabrik_kendaraan" and 1160 or 865
+                catat("UJI_TITIK_RALLY", p[1], 780, zTerlarang,
+                    sp.TestMoveOrder(defs[p[6][1]].id, 780, sp.GetGroundHeight(780, zTerlarang), zTerlarang,
+                        0, 0, 0, true, false))
+                arah(id, CMD.MOVE, p[4], p[5])
+                local cmd, _, _, xRally, _, zRally = sp.GetUnitCurrentCommand(id, -1)
+                catat("TITIK_RALLY", p[1], cmd, xRally, zRally)
+                for _, key in ipairs(p[6]) do
+                    assert(sp.TestMoveOrder(defs[key].id, p[4], y, p[5], 0, 0, 0, true, false), key)
+                    sp.GiveOrderToUnit(id, -defs[key].id, {}, 0)
+                end
+            end
+        end
+        if frame % 6 ~= 0 then return end
+        for id, p in pairs(produk) do
+            local x, _, z = sp.GetUnitPosition(id)
+            if not p.lewat and x > p.pabrik[2] + 64 then p.lewat = frame - p.lahir end
+            local sisa = jarak(x, z, p.pabrik[4], p.pabrik[5])
+            if not p.tiba and sisa <= 36 then p.tiba = frame - p.lahir end
+            p.x, p.z, p.terdekat = x, z, math.min(p.terdekat or sisa, sisa)
+            local cmd, opsi, tag, tx, _, tz = sp.GetUnitCurrentCommand(id)
+            if p.key == "robot_insinyur" and (p.tag ~= tag or not p.tercatat) then
+                p.tercatat, p.tag = true, tag
+                catat("PERINTAH_INSINYUR", frame, x, z, cmd or 0, tx or 0, tz or 0, opsi or 0)
+            end
+        end
+        if frame == 2700 then
+            local total = 0
+            for _, p in pairs(produk) do
+                total = total + 1
+                catat("RALLY", p.pabrik[1], p.key, p.lewat or 0, p.tiba or 0)
+                if not p.lewat or not p.tiba then
+                    catat("GAGAL", "rally", p.pabrik[1], p.key, p.x, p.z, p.terdekat)
+                end
+            end
+            if total ~= 6 then catat("GAGAL", "jumlah produksi", total) end
+            selesai()
+        end
+    end
+end
+
+local function lereng()
+    local kasusTembak = {
+        {"datar", "medium_tank", 385, 570, 497, 570},
+        {"kaki_bukit", "medium_tank", 565, 720, 806, 720},
+        {"lereng_miring", "medium_tank", 585, 1340, 817, 1320},
+        {"lereng_curam", "medium_tank", 570, 1140, 835, 1140},
+        {"arah_puncak", "medium_tank", 727, 1024, 994, 1024},
+        {"artileri_terlalu_dekat", "artileri_ringan", 410, 1545, 570, 1545},
+        {"artileri_lereng", "artileri_ringan", 390, 1490, 980, 1490},
+    }
+    local pelaku = {}
+    function gadget:Initialize()
+        for _, key in ipairs({"rts_meriam_medium", "rts_artileri_ringan"}) do
+            local id = WeaponDefNames[key].id
+            Script.SetWatchProjectile(id, true)
+            Script.SetWatchExplosion(id, true)
+        end
+    end
+    function gadget:ProjectileCreated(_, owner)
+        local c = pelaku[owner]
+        if c then c.tembak = c.tembak + 1 end
+    end
+    function gadget:Explosion(_, x, _, z, owner)
+        local c = pelaku[owner]
+        if c then
+            c.bentur = c.bentur + 1
+            c.meleset = math.max(c.meleset, jarak(x, z, c.gx, c.gz))
+        end
+        return false
+    end
+    return function(frame)
+        if frame == 5 then
+            for _, item in ipairs(kasusTembak) do
+                local nama, key, x, z, gx, gz = unpack(item)
+                local id = buat(key, x, z)
+                pelaku[id] = {nama = nama, gx = gx, gz = gz, tembak = 0, bentur = 0, meleset = 0}
+                arah(id, CMD.ATTACK, gx, gz)
+                catat("BIDIK", nama, x, z, gx, gz, sp.GetGroundHeight(gx, gz) - sp.GetGroundHeight(x, z))
+            end
+        elseif frame == 420 then
+            for _, c in pairs(pelaku) do
+                catat("TEMBAK", c.nama, c.tembak, c.bentur, c.meleset)
+                if c.nama == "lereng_curam" or c.nama == "arah_puncak" or c.nama == "artileri_terlalu_dekat" then
+                    if c.tembak > 0 then catat("GAGAL", "tembakan semestinya tertahan", c.nama) end
+                elseif c.bentur == 0 or c.meleset > 4 then
+                    catat("GAGAL", "benturan di luar toleransi", c.nama, c.bentur, c.meleset)
+                end
+            end
+            selesai()
+        end
+    end
+end
+
+local siapkan = ({koridor = koridor, rally = rally, lereng = lereng})[kasus]
+local jalankan = siapkan()
+function gadget:GameFrame(frame) jalankan(frame) end
