@@ -51,6 +51,8 @@ if gadgetHandler:IsSyncedCode() then
 end
 
 local ledakan = {}
+local pakaiBekasBawaan = sp.GetModOptions().skenario == "sungai"
+local benturanTersembunyi = {}
 local function visible(x, y, z)
     local _, semuaTerlihat = sp.GetSpectatingState()
     return semuaTerlihat or sp.IsPosInLos(x, y + 6, z, sp.GetMyAllyTeamID())
@@ -59,7 +61,27 @@ end
 local function suaraBenturan(_, x, y, z, volume)
     if visible(x, y, z) then
         sp.PlaySoundFile("sounds/ledakan-permukaan.wav", volume, x, y, z, "battle")
+    elseif pakaiBekasBawaan then
+        benturanTersembunyi[#benturanTersembunyi + 1] = {x, z}
     end
+end
+
+function gadget:Update()
+    if #benturanTersembunyi == 0 then return end
+    -- Recoil menempelkan bekas secara otomatis. Saring benturan yang tidak disaksikan tim.
+    for _, id in ipairs(sp.GetAllGroundDecals()) do
+        if sp.GetGroundDecalType(id) == "explosion" then
+            local x, z = sp.GetGroundDecalMiddlePos(id)
+            for _, titik in ipairs(benturanTersembunyi) do
+                if math.abs(x - titik[1]) < .5 and math.abs(z - titik[2]) < .5 then
+                    sp.SetGroundDecalAlpha(id, 0)
+                    sp.SetGroundDecalGlowParams(id, 0)
+                    break
+                end
+            end
+        end
+    end
+    benturanTersembunyi = {}
 end
 local baris, piksel = 4, 256
 local profil = {

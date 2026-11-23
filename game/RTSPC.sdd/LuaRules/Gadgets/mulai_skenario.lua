@@ -24,6 +24,10 @@ function gadget:GameStart()
         if ekonomi then
             buat("inti_komando", x, z, facing, team)
             buat("robot_insinyur", x + awal.insinyur[1], z + awal.insinyur[2], facing, team)
+            if skenario.tankAwal then
+                local tanda = i == 1 and 1 or -1
+                buat("medium_tank", x + tanda * skenario.tankAwal[1], z + tanda * skenario.tankAwal[2], facing, team)
+            end
             local hq = UnitDefNames.inti_komando
             Spring.SetTeamResource(team, "ms", hq.metalStorage)
             Spring.SetTeamResource(team, "es", hq.energyStorage)

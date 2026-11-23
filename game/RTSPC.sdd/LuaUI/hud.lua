@@ -42,6 +42,7 @@ local order = {
 }
 
 local layout, data, pilihan, aktivitas, kekurangan, rally
+local unitTerpilih, deskripsiPerintah = {}, {}
 local tab = "perintah"
 local targetPabrik, progresTerakhir, frameGerak
 local pesan, waktuPesan
@@ -135,6 +136,7 @@ function hud.Initialize(restart, back)
         "endgraph 0"})
     sp.SetDrawSelectionInfo(false)
     gl.SlaveMiniMap(true)
+    hud.Update()
 end
 
 function hud.Shutdown()
@@ -221,11 +223,19 @@ local function bacaAktivitas(unit, inBuild, frame)
     end
 end
 
+function hud.LayoutCommands(perintah)
+    -- Recoil menyediakan daftar perintah baru bersamaan dengan pilihan yang melahirkannya.
+    unitTerpilih = sp.GetSelectedUnits()
+    deskripsiPerintah = perintah
+    waktuCek = 0
+    if aktif then hud.Update() end
+end
+
 function hud.Update()
     local t = sp.GetTimer()
     if waktuCek ~= 0 and sp.DiffTimers(t, waktuCek) < .10 then return end
     waktuCek = t
-    local unit = sp.GetSelectedUnits()
+    local unit = unitTerpilih
     local pertama = unit[1]
     local tim = sp.GetMyTeamID()
     data = {unit = pertama, jumlah = #unit, hp = 0, maks = 0, jenis = {}, perintah = {},
@@ -256,7 +266,7 @@ function hud.Update()
         end
     end
     local descs = {}
-    for _, desc in ipairs(sp.GetActiveCmdDescs()) do
+    for _, desc in ipairs(deskripsiPerintah) do
         descs[desc.id] = desc
         if desc.id < 0 and UnitDefs[-desc.id] then
             local def = UnitDefs[-desc.id]

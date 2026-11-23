@@ -29,7 +29,7 @@ local siapKamera = false
 local shown = false
 
 local function mulaiUlang()
-    local start = VFS.LoadFile("gamedata/skenario/bukit-start.txt")
+    local start = VFS.LoadFile(aturan.startScript or "gamedata/skenario/bukit-start.txt")
     if profiles[opsi.tingkat_ai] then
         start = start:gsub("ekonomi=1;", "ekonomi=1;tingkat_ai=" .. opsi.tingkat_ai .. ";")
     end
@@ -71,7 +71,8 @@ function Shutdown()
     if shown then hud.Shutdown() end
 end
 
-function LayoutButtons()
+function LayoutButtons(_, _, _, perintah)
+    hud.LayoutCommands(perintah)
     -- Sisakan deskripsi dan pintasan Recoil. Semua tombol visual digambar di HUD.
     return "", 2, 2, {}, {}, {}, {}, {}, {}, {}, {}
 end

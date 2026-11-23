@@ -8,12 +8,12 @@ Lingkungan pengembangan Windows x64 untuk RTS PC dengan Recoil Engine.
 
 **Poin 2 selesai** · Perbaikan tujuan akhir Light Tank dan rally Engineer Bot diuji ulang di Central Hill. Lihat [Regresi kontrol Central Hill](#regresi-kontrol-central-hill).
 
+**Poin 6 selesai** · Central Hill dan River Valley dapat dipilih di menu skirmish.
+
 **Ditunda atas arahan pengguna**
 
 - Poin 3 · Uji keseimbangan skirmish Easy, Normal, dan Hard.
 - Poin 4 · Pengaturan volume, tampilan, dan sensitivitas kamera.
-- Poin 5 · Paket build Windows dan uji instalasi dari folder bersih.
-- Poin 6 · Peta kedua dan pemilih peta di menu.
 - Uji performa pertempuran 50, 100, dan 200 unit pada zoom dekat dan jauh.
 
 ## Instalasi
@@ -31,6 +31,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 
 `dependencies.windows.json` menyimpan versi, URL, dan hash arsip. Hash Recoil berasal dari metadata rilis GitHub. Hash PyMapConv dicatat dari unduhan resmi saat setup.
 
+### Build Windows x64
+
+Jalankan `python tools/build_windows.py` dari Windows untuk membuat `dist/windows/RTS-PC-v3-win-x64.exe`. Skrip mengambil game, menu, dan peta dari commit `HEAD`, lalu membundel Recoil sesuai versi dan checksum di commit tersebut. Compiler .NET Framework Windows membangun peluncurnya.
+
+Klik dua kali executable untuk mengekstrak game ke `%LOCALAPPDATA%\RTS PC v3\<commit>` dan membuka menu skirmish offline. Untuk ekstraksi portabel, jalankan `RTS-PC-v3-win-x64.exe --extract "C:\Games\RTS PC v3"` lalu buka `RTS PC.exe` dari folder hasil ekstraksi. Informasi build dan sumber Recoil tersedia di `BUILD.txt`.
+
 ## Recoil
 
 ```powershell
@@ -46,9 +52,9 @@ Paket game utama ada di [game/RTSPC.sdd](game/RTSPC.sdd). Launcher menyalin pake
 
 ## Uji langsung
 
-Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Pilihan terakhir disimpan saat memulai pertandingan. Panah atas/bawah dan Enter juga bisa dipakai.
+Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Pilih **Central Hill** atau **River Valley**, pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Menu menyimpan peta dan tingkat kesulitan saat pertandingan dimulai. Panah kiri/kanan memilih peta, panah atas/bawah memilih tingkat AI, dan Enter memulai pertandingan.
 
-Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume**, **Restart Match**, atau **Back to Skirmish**. Memulai ulang mempertahankan tingkat kesulitan AI. Mode uji langsung tetap memakai kontrol Recoil.
+Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume**, **Restart Match**, atau **Back to Skirmish**. Memulai ulang memakai peta dan tingkat kesulitan AI pertandingan itu. Mode uji langsung tetap memakai kontrol Recoil.
 
 | AI | Interval keputusan | Ambang produksi pasukan |
 | --- | ---: | ---: |
@@ -58,7 +64,7 @@ Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume
 
 Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
 
-Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang peta briefing dari relief Bukit. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
+Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang pratinjau kedua peta dari relief. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
 
 ### Pembangunan dan produksi
 
@@ -158,6 +164,14 @@ LOD memakai atlas yang sama dan mengikuti transformasi serta visibilitas bagian 
 | Light Artillery | 6.800 | 10.544 |
 
 Jalankan `python tools/impor_lod.py` setelah impor model penuh untuk membangun ulang `game/RTSPC.sdd/objects3d/lod/`. Konverter memeriksa nama bagian, pivot sumber, urutan material, dan batas keseluruhan dengan toleransi 1 cm. Setel `RTSPCUnitLOD = 0` di konfigurasi Recoil sebelum memulai game untuk membandingkan dengan model penuh.
+
+## Lembah Sungai 1v1
+
+Pilih **River Valley** di menu skirmish atau buka `Uji Lembah Sungai 1v1.cmd` untuk langsung bermain melawan AI Normal. Peta berukuran 4.096 × 4.096 elmo atau 512 × 512 m. Tiap pihak mulai dengan Command Core, Engineer Bot, dan satu Medium Tank untuk mencoba jejak track dan menembak tanah. Ada empat titik perebutan dan 12 ladang besi. [Denah peta](maps/lembah-sungai-denah.png)
+
+Ada dua penyeberangan dangkal yang bisa dilintasi unit darat. Typemap membatasi sungai yang dalam dan bukit curam. Sebaran cemara memakai empat model `fir_tree_*.s3o` dari `springcontent.sdz` dengan tabrakan bawaan Recoil. Rumput, detail tanah, material air, dan tekstur decal diambil dari `bitmaps.sdz` Recoil. Layout dan tinggi medannya dibuat prosedural untuk proyek ini.
+
+Setelah menjalankan `setup.ps1`, jalankan `python tools/buat_lembah_sungai.py` untuk membuat ulang paket `.sdz`. Skrip membentuk heightmap, menyusun warna medan dari tekstur bawaan, lalu memberi PyMapConv peta jenis medan, mask rumput, minimap, dan posisi pohon. Recoil menggambar jejak track ketika kendaraan berjalan di darat dan menempelkan bekas ledakan saat peluru berat mengenai permukaan. Bekas tembakan yang terlihat memudar dalam sekitar dua menit. [Dokumentasi decal Recoil](https://recoilengine.org/docs/guides/rendering/using-decals/)
 
 ## Bukit Tengah 1v1
 
