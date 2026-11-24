@@ -27,7 +27,7 @@ Game adalah paket Lua `game/RTSPC.sdd` (Recoil memuatnya sebagai game `RTSPC.sdd
 - `scripts/`: skrip animasi unit (turret, laras, roda, pintu pabrik).
 - `menu/RTSPCMenu.sdd/LuaMenu/main.lua`: menu skirmish (pilih peta dan tingkat AI).
 - `tools/`: impor model/LOD/suara dari V2, pembuat peta (PyMapConv, Blender), `build_windows.py`, uji headless (`uji_balance.py`, `uji_kontrol.py`), dan uji visual grafis (`uji_visual.py`).
-- `maps/`: `.sdz` peta + `mapinfo-*.lua`. Peta: Central Hill 1v1, River Valley 1v1, Pine Crossing 4v4.
+- `maps/`: `.sdz` peta + `mapinfo-*.lua`. Peta: Central Hill 1v1, River Valley 1v1, Pine Crossing 4v4, Verdant Ridge 4v4.
 
 ## 3. Perintah
 - Pasang engine: `powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1` (ke `.deps/`).
@@ -47,6 +47,12 @@ Game adalah paket Lua `game/RTSPC.sdd` (Recoil memuatnya sebagai game `RTSPC.sdd
 - Graphify tidak membaca simbol di file data Lua (`return {...}`) maupun fungsi di dalam closure (`lawan_skenario.lua`), dan bisa salah menyambung fungsi lokal bernama sama di file berbeda (mis. `mulai()`).
 - AI: tapak berpohon lolos `TestBuildOrder` (=2) tetapi insinyur harus reclaim pohonnya dulu dan bisa macet lama; selalu periksa `GetFeaturesInRectangle`.
 - Perintah 90 di log = `CMD.RECLAIM`.
+- Mask gambar engine unit: bit 1 = pass utama, bit 16 = bayangan. `lod_unit.lua` hanya mematikan bit 1.
+- `UnitIconDist` dikali radius unit; nilai bawaan 200 berarti tank baru jadi ikon ±5.000 elmo.
+- Hook `tools/uji_visual` tanpa SHOTS langsung keluar; untuk hook berbasis waktu, isi SHOTS dengan entri penahan `f = 1e9`.
+- Kompilasi peta (PyMapConv) gagal "'nvdxt.exe' is not recognized" kalau environment punya `NoDefaultCurrentDirectoryInExePath=1` (diset di shell agen). Jalankan generator dengan variabel itu di-unset.
+- Kunci rumput mapinfo yang benar: `grass = {bladeHeight, bladeWidth, bladeWaveScale, bladeColor}`. Kunci `grassBladeHeight` dkk. diabaikan diam-diam. Verdant Ridge sudah memakai kunci tahap 5 melalui `tools/poles_peta.py`.
+- `tools/buat_pine_crossing.py compile` menulis ulang `gamedata/skenario/pinus.lua`; ubah konstanta di generator, bukan hanya file hasilnya.
 - PowerShell `Get-Content`/`Set-Content` merusak UTF-8 tanpa BOM; pakai `[IO.File]` atau Python.
 
 ## 5. Status
@@ -58,6 +64,16 @@ Lihat `docs/tahapan.md`.
 **Sebelum berhenti (termasuk saat limit hampir habis):** tulis catatan di bagian 7 (paling atas): tanggal, agen, selesai, setengah jalan (file mana, langkah berikut persisnya), hasil uji, yang menunggu keputusan user. Commit hanya kalau user minta, dan hanya file milikmu.
 
 ## 7. Catatan sesi (terbaru di atas)
+### 2026-11-24, Codex ? Verdant Ridge masuk Skirmish
+- Permintaan user mengaktifkan peta kandidat. Peluncur repo, peluncur langsung dan staging Windows memuat peta, pratinjau, skenario serta pinus dari game utama. Skor mengikuti tahap 1. Rumput dan cahaya mengikuti tahap 5.
+- Build Windows lokal dari working tree `7f256062c80b`. Uji dropdown ? Start Match dari paket memeriksa 8 HQ, 4 titik, 40 ladang dan 4.100 pinus. Uji navigasi 64/64 lulus. [Laporan dan dua screenshot integrasi](peta-punggung-hijau.md).
+- Pekerjaan integrasi selesai. Balance ronde penuh Verdant Ridge belum diukur. Perubahan siap ditinjau bersama pekerjaan Claude sebelum commit.
+
+### 2026-11-24 (lanjutan 2), Claude
+- Selesai (belum di-commit): tahap 5 albedo + rumput, 6 sebagian (pantulan), 7 tracer, 8 health bar + ikon, 9 Settings, 10 diukur. Rincian di `docs/tahapan.md`.
+- Selesai juga: bayangan LOD (`DrawShadowUnitsLua`) + LOD 560 elmo. Menunggu: model game ringan dari GPT, normal map/skala markas, notifikasi.
+- Alat baru: `tools/grading_medan.py`, `tools/poles_material.py`, `tools/buat_ikon.py`, `tools/uji_visual.py --cfg/--tanpa` (A/B), hook `pengaturan.lua`, `ikon.lua`, `ui.lua`, `performa.lua.tpl`.
+- Regresi: uji_kontrol 7/7, uji_balance seed 1 7/7.
 ### 2026-11-24 (lanjutan), Claude
 - Selesai: tahap 1–4 (tempo, AI, ekonomi diukur, `tools/uji_ronde.py`), tahap 5 sebagian (cahaya/kabut via `tools/poles_peta.py`). Rincian dan angka di `docs/tahapan.md`.
 - Berikutnya: tahap 5 albedo, lalu 6 (material model), 7 (efek), 8 (UI), 9 (pengaturan), 10 (performa).

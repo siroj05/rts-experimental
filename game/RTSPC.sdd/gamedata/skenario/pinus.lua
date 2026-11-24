@@ -1,6 +1,6 @@
 local skenario = {
     startScript = "gamedata/skenario/pinus-start.txt",
-    radius = 88, detikRebut = 4, poinPerDetik = 1 --[[ Tempo 🟡 2026-11-24: 2 titik 20 menit, 4 titik 10 menit ]], targetSkor = 2400,
+    radius = 88, detikRebut = 4, poinPerDetik = 1, targetSkor = 2400, -- Tempo 🟡 2026-11-24 (lihat docs/tahapan.md)
     titik = {
         {nama = "A", x = 1776, z = 792},
         {nama = "B", x = 2312, z = 792},

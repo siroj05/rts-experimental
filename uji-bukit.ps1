@@ -1,4 +1,4 @@
-param([switch]$Tempur, [switch]$Langsung, [switch]$Sungai)
+param([switch]$Tempur, [switch]$Langsung, [switch]$Sungai, [switch]$Hijau)
 
 $ErrorActionPreference = 'Stop'
 
@@ -25,19 +25,23 @@ $maps = Join-Path $engine 'maps'
 $games = Join-Path $engine 'games'
 [IO.Directory]::CreateDirectory($maps) | Out-Null
 [IO.Directory]::CreateDirectory($games) | Out-Null
-$mapArchives = if ($Sungai) {
+$mapArchives = if ($Hijau) {
+    'punggung-hijau-4v4'
+} elseif ($Sungai) {
     'lembah-sungai-1v1'
 } elseif ($Tempur -or $Langsung) {
     'bukit-tengah-1v1'
 } else {
-    @('bukit-tengah-1v1', 'lembah-sungai-1v1', 'lintasan-pinus-4v4')
+    @('bukit-tengah-1v1', 'lembah-sungai-1v1', 'lintasan-pinus-4v4', 'punggung-hijau-4v4')
 }
 foreach ($archive in $mapArchives) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "maps/$archive.sdz") -Destination $maps -Force
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'game/RTSPC.sdd') -Destination $games -Recurse -Force
 $arguments = @('--isolation', '--only-local', '--window')
-if ($Sungai) {
+if ($Hijau) {
+    $arguments += ('"{0}"' -f (Join-Path $PSScriptRoot 'game/RTSPC.sdd/gamedata/skenario/hijau-start.txt'))
+} elseif ($Sungai) {
     $arguments += ('"{0}"' -f (Join-Path $PSScriptRoot 'game/RTSPC.sdd/gamedata/skenario/sungai-start.txt'))
 } elseif ($Tempur -or $Langsung) {
     $scenario = if ($Tempur) { 'uji/bukit-1v1.txt' } else { 'game/RTSPC.sdd/gamedata/skenario/bukit-start.txt' }
@@ -45,10 +49,10 @@ if ($Sungai) {
 } else {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'menu/RTSPCMenu.sdd') -Destination $games -Recurse -Force
     $luaMenu = Join-Path $games 'RTSPCMenu.sdd/LuaMenu'
-    foreach ($source in @('skenario/bukit.lua', 'skenario/bukit-start.txt', 'skenario/sungai.lua', 'skenario/sungai-start.txt', 'skenario/pinus.lua', 'skenario/pinus-start.txt', 'profil_ai.lua')) {
+    foreach ($source in @('skenario/bukit.lua', 'skenario/bukit-start.txt', 'skenario/sungai.lua', 'skenario/sungai-start.txt', 'skenario/pinus.lua', 'skenario/pinus-start.txt', 'skenario/hijau.lua', 'skenario/hijau-start.txt', 'profil_ai.lua')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot "game/RTSPC.sdd/gamedata/$source") -Destination $luaMenu -Force
     }
-    foreach ($source in @('mapinfo-bukit-tengah.lua', 'mapinfo-lembah-sungai.lua', 'mapinfo-lintasan-pinus-4v4.lua')) {
+    foreach ($source in @('mapinfo-bukit-tengah.lua', 'mapinfo-lembah-sungai.lua', 'mapinfo-lintasan-pinus-4v4.lua', 'mapinfo-punggung-hijau-4v4.lua')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot "maps/$source") -Destination $luaMenu -Force
     }
     $arguments += @('--menu', 'RTSPCMenu.sdd')

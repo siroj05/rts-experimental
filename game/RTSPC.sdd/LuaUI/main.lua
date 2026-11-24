@@ -1,6 +1,7 @@
 local aturan = VFS.Include("gamedata/skenario.lua")
 if not aturan then return end
 local hud = VFS.Include("LuaUI/hud.lua")
+local batangHp = VFS.Include("LuaUI/batang_hp.lua")
 local baca = Spring.GetGameRulesParam
 local warnaTim = {
     [-1] = {0.68, 0.72, 0.70},
@@ -171,6 +172,7 @@ function DrawWorld()
     end
     hud.DrawRally()
     hud.DrawWeaponRanges()
+    batangHp.DrawWorld()
     gl.LineWidth(1)
     gl.DepthTest(false)
     gl.Color(1, 1, 1, 1)

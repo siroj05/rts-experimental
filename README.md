@@ -54,7 +54,7 @@ Paket game utama ada di [game/RTSPC.sdd](game/RTSPC.sdd). Launcher menyalin pake
 
 ## Uji langsung
 
-Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Buka dropdown **Map** untuk memilih **Central Hill** atau **River Valley**. Pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Menu menyimpan peta dan tingkat kesulitan saat pertandingan dimulai. Space membuka daftar peta. Di luar daftar, panah kiri/kanan memilih peta, panah atas/bawah memilih tingkat AI, dan Enter memulai pertandingan.
+Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Buka dropdown **Map** untuk memilih **Central Hill**, **River Valley**, **Pine Crossing**, atau **Verdant Ridge**. Pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Menu menyimpan peta dan tingkat kesulitan saat pertandingan dimulai. Space membuka daftar peta. Di luar daftar, panah kiri/kanan memilih peta, panah atas/bawah memilih tingkat AI, dan Enter memulai pertandingan.
 
 Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume**, **Restart Match**, atau **Back to Skirmish**. Memulai ulang memakai peta dan tingkat kesulitan AI pertandingan itu. Mode uji langsung tetap memakai kontrol Recoil.
 
@@ -63,6 +63,10 @@ Angka AI ada di `game/RTSPC.sdd/gamedata/profil_ai.lua`: Easy, Normal, dan Hard 
 Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
 
 Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang pratinjau kedua peta dari relief. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
+
+### Pengaturan dan tampilan
+
+Tekan **Esc** saat bermain lalu pilih **Settings** untuk mengatur volume, jarak ikon unit, bayangan, kecepatan zoom, dan health bar. Pilihan disimpan ke `springsettings.cfg`. Health bar tampil di atas unit yang rusak, terpilih, atau sedang dibangun. Pada zoom jauh unit berganti menjadi ikon berwarna tim (`tools/buat_ikon.py`).
 
 ### Pembangunan dan produksi
 
@@ -170,6 +174,14 @@ Pilih **River Valley** di menu skirmish atau buka `Uji Lembah Sungai 1v1.cmd` un
 Ada dua penyeberangan dangkal yang bisa dilintasi unit darat. Typemap membatasi sungai yang dalam dan bukit curam. Sebaran cemara memakai empat model `fir_tree_*.s3o` dari `springcontent.sdz` dengan tabrakan bawaan Recoil. Rumput, detail tanah, material air, dan tekstur decal diambil dari `bitmaps.sdz` Recoil. Layout dan tinggi medannya dibuat prosedural untuk proyek ini.
 
 Setelah menjalankan `setup.ps1`, jalankan `python tools/buat_lembah_sungai.py` untuk membuat ulang paket `.sdz`. Skrip membentuk heightmap, menyusun warna medan dari tekstur bawaan, lalu memberi PyMapConv peta jenis medan, mask rumput, minimap, dan posisi pohon. Recoil menggambar jejak track ketika kendaraan berjalan di darat dan menempelkan bekas ledakan saat peluru berat mengenai permukaan. Bekas tembakan yang terlihat memudar dalam sekitar dua menit. [Dokumentasi decal Recoil](https://recoilengine.org/docs/guides/rendering/using-decals/)
+
+## Verdant Ridge 4v4
+
+Pilih **Verdant Ridge** di Skirmish atau buka `Uji Punggung Hijau 4v4.cmd` untuk langsung bermain. Peta 1024 ? 768 m ini memiliki empat jalur perebutan, 40 ladang besi, dan 4.100 pinus. Setiap titik menghasilkan 1 poin per detik untuk kubu yang menguasainya. Target kemenangan 2.400. [Denah dan sumber peta](docs/peta-punggung-hijau.md)
+
+## Verdant Ridge 4v4
+
+Pilih **Verdant Ridge** di Skirmish atau buka `Uji Punggung Hijau 4v4.cmd`. Peta 1024 × 768 m dengan empat jalur utama, titik A–D di garis tengah, 40 ladang besi, pegunungan batu penghalang, dan dataran pasir kelabu di selatan. Rincian, sumber, dan cara build ulang ada di [docs/peta-punggung-hijau.md](docs/peta-punggung-hijau.md).
 
 ## Pine Crossing 4v4
 

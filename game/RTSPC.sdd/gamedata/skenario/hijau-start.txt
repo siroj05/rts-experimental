@@ -1,0 +1,30 @@
+[GAME]
+{
+    MapName=Verdant Ridge 4v4 1.0;
+    GameType=RTSPC.sdd;
+    MyPlayerName=Player;
+    IsHost=1;
+    StartPosType=0;
+    GameStartDelay=1;
+    RecordDemo=0;
+    FixedRNGSeed=1;
+    [PLAYER0]{Name=Player;Team=0;Spectator=0;}
+    [ALLYTEAM0]{NumAllies=0;}
+    [ALLYTEAM1]{NumAllies=0;}
+    [TEAM0]{TeamLeader=0;AllyTeam=0;RgbColor=0.23 0.65 1;}
+    [TEAM1]{TeamLeader=0;AllyTeam=0;RgbColor=0.23 0.65 1;}
+    [AI0]{Name=Ally 1;ShortName=NullAI;Version=0.1;Team=1;Host=0;}
+    [TEAM2]{TeamLeader=0;AllyTeam=0;RgbColor=0.23 0.65 1;}
+    [AI1]{Name=Ally 2;ShortName=NullAI;Version=0.1;Team=2;Host=0;}
+    [TEAM3]{TeamLeader=0;AllyTeam=0;RgbColor=0.23 0.65 1;}
+    [AI2]{Name=Ally 3;ShortName=NullAI;Version=0.1;Team=3;Host=0;}
+    [TEAM4]{TeamLeader=0;AllyTeam=1;RgbColor=1 0.25 0.2;}
+    [AI3]{Name=Opponent 4;ShortName=NullAI;Version=0.1;Team=4;Host=0;}
+    [TEAM5]{TeamLeader=0;AllyTeam=1;RgbColor=1 0.25 0.2;}
+    [AI4]{Name=Opponent 5;ShortName=NullAI;Version=0.1;Team=5;Host=0;}
+    [TEAM6]{TeamLeader=0;AllyTeam=1;RgbColor=1 0.25 0.2;}
+    [AI5]{Name=Opponent 6;ShortName=NullAI;Version=0.1;Team=6;Host=0;}
+    [TEAM7]{TeamLeader=0;AllyTeam=1;RgbColor=1 0.25 0.2;}
+    [AI6]{Name=Opponent 7;ShortName=NullAI;Version=0.1;Team=7;Host=0;}
+    [MODOPTIONS]{skenario=hijau;lawanuji=1;ekonomi=1;}
+}

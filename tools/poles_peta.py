@@ -35,10 +35,20 @@ UDARA = """atmosphere = {
         maxWind = 12,
     }"""
 
+# Rumput engine: kunci yang dikenali Recoil adalah bladeHeight/bladeWidth/bladeWaveScale/bladeColor (kunci lama
+# `grassBlade*` diabaikan sehingga warna bawaan {0.59, 0.81, 0.57} yang terlalu terang dipakai).
+RUMPUT = """grass = {
+        bladeHeight = 3.2,
+        bladeWidth = 0.29,
+        bladeWaveScale = 0.8,
+        bladeColor = {0.34, 0.42, 0.25},
+    }"""
+
 # stem mapinfo -> (arsip .sdz, arah matahari)
 PETA = {
     "bukit-tengah": ("bukit-tengah-1v1", "-0.62, 0.56, -0.55"),
     "lembah-sungai": ("lembah-sungai-1v1", "-0.62, 0.56, -0.55"),
+    "punggung-hijau-4v4": ("punggung-hijau-4v4", "-0.67, 0.59, -0.45"),
     "lintasan-pinus-4v4": ("lintasan-pinus-4v4", "-0.62, 0.56, -0.55"),
 }
 
@@ -67,6 +77,7 @@ def poles(stem):
     teks = sumber.read_text(encoding="utf-8")
     teks = ganti_tabel(teks, "lighting", CAHAYA.replace("SUN", matahari))
     teks = ganti_tabel(teks, "atmosphere", UDARA)
+    teks = ganti_tabel(teks, "grass", RUMPUT)
     sumber.write_text(teks, encoding="utf-8", newline="\n")
     sdz = ROOT / "maps" / f"{arsip}.sdz"
     sementara = sdz.with_suffix(".tmp")

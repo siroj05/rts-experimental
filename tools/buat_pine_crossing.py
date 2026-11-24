@@ -1,4 +1,4 @@
-﻿"""Stage procedural albedo; compile Blender's exported heightmap and marker layout."""
+"""Stage procedural albedo; compile Blender's exported heightmap and marker layout."""
 import argparse
 import json
 from pathlib import Path
@@ -10,6 +10,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import numpy as np
 from PIL import Image, ImageDraw
 
+from grading_medan import grade
 from pine_crossing_layout import DEPTH, FILENAME, HIGH, IRON, LOW, STEM, WIDTH, smooth, terrain
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +69,7 @@ def scenario(layout):
     (ROOT/f"maps/mapinfo-{STEM}.lua").write_text(info,encoding="utf-8")
 
     lines=['return {', '    startScript = "gamedata/skenario/pinus-start.txt",',
-           '    radius = 88, detikRebut = 4, poinPerDetik = 60, targetSkor = 100000,', '    titik = {']
+           '    radius = 88, detikRebut = 4, poinPerDetik = 1, targetSkor = 2400,', '    titik = {']
     lines += [f'        {{nama = "{label}", x = {x}, z = {z}}},' for label,(x,z) in zip("ABCD",points)]
     lines += ['    },', '    ladang = {']
     lines += ['        '+', '.join(f'{{{x}, {z}}}' for x,z in iron[i:i+3])+',' for i in range(0,len(iron),3)]
@@ -146,7 +147,10 @@ def compile_map():
 
     (WORK/"pohon.lua").write_text("".join(
         f"{{name='TreeType{k}', x={x}, z={z}, rot={r}, scale=1.0}}\n" for x,z,k,r in layout["trees"]),encoding="ascii")
-    color=Image.open(WORK/"warna.png").resize((1024,768),Image.Resampling.LANCZOS)
+    # Grading medan bersama (tahap 5): albedo yang dikompilasi dan minimap (warna rumput) memakai versi tergrading.
+    graded=grade(Image.open(WORK/"warna.png"))
+    graded.save(WORK/"warna.bmp")
+    color=graded.resize((1024,768),Image.Resampling.LANCZOS)
     ground=np.asarray(color,dtype=np.float32)
     relh=np.asarray(Image.fromarray(h).resize(color.size,Image.Resampling.BILINEAR))
     dz,dx=np.gradient(relh)

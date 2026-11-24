@@ -23,7 +23,12 @@ return {
         [3] = {name = "Shallow Ford", receiveTracks = false,
             moveSpeeds = {tank = .75, kbot = .85, hover = 1, ship = 1}},
     },
-    grass = {grassBladeHeight = 3.2, grassBladeWidth = .29, grassBladeWaveScale = .8},
+    grass = {
+        bladeHeight = 3.2,
+        bladeWidth = 0.29,
+        bladeWaveScale = 0.8,
+        bladeColor = {0.34, 0.42, 0.25},
+    },
     lighting = {
         sunDir = {-0.62, 0.56, -0.55},
         groundAmbientColor = {0.36, 0.38, 0.42},

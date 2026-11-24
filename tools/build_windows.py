@@ -48,9 +48,11 @@ def stage_game(source, runtime):
     shutil.copytree(source / "game/RTSPC.sdd", runtime / "games/RTSPC.sdd")
     shutil.copytree(source / "menu/RTSPCMenu.sdd", menu.parent)
     for name in ("skenario/bukit.lua", "skenario/bukit-start.txt", "skenario/sungai.lua",
-                 "skenario/sungai-start.txt", "skenario/pinus.lua", "skenario/pinus-start.txt", "profil_ai.lua"):
+                 "skenario/sungai-start.txt", "skenario/pinus.lua", "skenario/pinus-start.txt",
+                 "skenario/hijau.lua", "skenario/hijau-start.txt", "profil_ai.lua"):
         shutil.copy2(data / name, menu)
-    for name in ("mapinfo-bukit-tengah.lua", "mapinfo-lembah-sungai.lua", "mapinfo-lintasan-pinus-4v4.lua"):
+    for name in ("mapinfo-bukit-tengah.lua", "mapinfo-lembah-sungai.lua", "mapinfo-lintasan-pinus-4v4.lua",
+                 "mapinfo-punggung-hijau-4v4.lua"):
         shutil.copy2(source / "maps" / name, menu)
     (runtime / "maps").mkdir()
     for path in sorted((source / "maps").glob("*.sdz")):

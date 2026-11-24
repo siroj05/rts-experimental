@@ -20,14 +20,14 @@ Diambil dari uji visual (Pine Crossing 4v4 10 menit sebagai penonton, Central Hi
 | 2 | Ekonomi: pemasukan, harga, kapasitas gudang | Pasukan pertama menit 1–2, gelombang serangan ±2 menit sekali | ✅ diukur, angka tetap |
 | 3 | AI: batas pasukan, serangan bergelombang, perebutan titik aktif, counter | Pertempuran nyata di semua peta | ✅ 2026-11-24 |
 | 4 | Uji balance otomatis 1v1 dan 4v4 headless, banyak seed | Angka win-rate, lama pertandingan, jumlah unit | ✅ 2026-11-24 |
-| 5 | Visual medan: warna natural, detail tanah, cahaya, kabut, grading | Natural dan dramatis | 🔄 cahaya/kabut selesai, albedo belum |
-| 6 | Material model: normal map, roughness, kotoran; skala markas | Unit tidak terlihat plastik | belum |
-| 7 | Efek: tracer bercahaya, benturan, ledakan, bekas hangus | Pertempuran dramatis | belum |
-| 8 | UI: health bar, ikon zoom jauh, indikator seleksi/tim, panel, notifikasi | Terbaca jelas saat tempur | belum |
-| 9 | Menu pengaturan (volume, grafis, kamera) | Poin 4 README lama | belum |
-| 10 | Uji performa 50/100/200+ unit, zoom dekat dan jauh | Angka fps tercatat | belum |
+| 5 | Visual medan: warna natural, detail tanah, cahaya, kabut, grading | Natural dan dramatis | ✅ 2026-11-24 |
+| 6 | Material model: normal map, roughness, kotoran; skala markas | Unit tidak terlihat plastik | 🔄 pantulan dinaikkan; normal map/kotoran/skala markas belum |
+| 7 | Efek: tracer bercahaya, benturan, ledakan, bekas hangus | Pertempuran dramatis | ✅ tracer; sisanya sudah ada dari sebelumnya |
+| 8 | UI: health bar, ikon zoom jauh, indikator seleksi/tim, panel, notifikasi | Terbaca jelas saat tempur | ✅ health bar + ikon; notifikasi belum |
+| 9 | Menu pengaturan (volume, grafis, kamera) | Poin 4 README lama | ✅ 2026-11-24 |
+| 10 | Uji performa 50/100/200+ unit, zoom dekat dan jauh | Angka fps tercatat | ✅ diukur; perbaikan menunggu keputusan user |
 
-Paralel (GPT, mode B): peta 4v4 baru "Verdant Ridge 4v4" (1024 × 768 m, A–D, hijau tua padat, pegunungan penghalang, pasir abu-abu gelap, pohon dan rumput bawaan Recoil). Setelah selesai, Claude mendaftarkannya ke menu dan paket Windows.
+? 2026-11-24, Verdant Ridge 4v4 terintegrasi di dropdown Skirmish, peluncur langsung, dan paket Windows. User meminta ?integrasiin map ke game, sesuai aturan yang udah dibuat claude?. Target skor 2.400. Uji paket grafis dan 64 rute lulus. [Bukti dan ukuran peta](peta-punggung-hijau.md)
 
 ## Hasil tahap 1–4 (2026-11-24)
 **Tempo (1).** Skor diseragamkan di semua peta: 1 poin/detik per titik, target 2.400 (2 titik 20 menit, 3 titik ±13 menit, 4 titik 10 menit). Sebelumnya 100.000 poin (1v1 ±2,8 jam). Bila kedua tim mencapai target dengan skor sama, pertandingan berlanjut sampai ada yang unggul. Bar skor HUD dibatasi 100%.
@@ -58,4 +58,42 @@ Regresi: `uji_kontrol.py` 7/7 lulus, `uji_balance.py --seed 1` 7/7 lulus.
 `tools/poles_peta.py` menulis ulang `lighting` dan `atmosphere` di `maps/mapinfo-*.lua` dan mengemas ulang `mapinfo.lua` di `.sdz` (Central Hill, River Valley, Pine Crossing; peta GPT tidak disentuh). Cadangan peta lama di `.cache/cadangan-peta/`.
 - 🟡 matahari ±35° (arah sama untuk ketiga peta), ambient medan 0,36–0,42 kebiruan (sebelumnya 0,57–0,60, penyebab cahaya datar), cahaya matahari hangat, shadow density 0,86, specular halus, kabut mulai 30% (sebelumnya 55–63%).
 - Hasil (screenshot `.cache/uji-visual/cahaya-*`): dari jauh hijau lebih kalem, bukit bervolume, ada kedalaman udara; dari dekat bayangan unit panjang dan searah.
-- Belum: albedo/rumput peta masih terlalu jenuh dan terang dari dekat (ada di tekstur peta). Perlu grading di generator peta (`tools/buat_*.py`) lalu kompilasi ulang dengan PyMapConv.
+- Albedo: `tools/grading_medan.py` (hijau jenuh -35% saturasi, geser ke zaitun, -12% terang, kontras tengah +10%) dipasang di ketiga generator; Central Hill, River Valley, Pine Crossing dikompilasi ulang.
+- Rumput 3D: mapinfo memakai kunci `grassBlade*` yang tidak dikenali Recoil, jadi warna bawaan hijau terang {0.59, 0.81, 0.57} yang tampil. Sekarang `grass = {bladeHeight, bladeWidth, bladeWaveScale, bladeColor = {0.34, 0.42, 0.25}}`.
+- `buat_pine_crossing.py compile` menulis ulang `pinus.lua` dengan skor lama; konstanta generator ikut diperbarui.
+
+## Tahap 6–10 (2026-11-24)
+**6. Material.** Importer mengisi kanal pantulan `tex2.G` = metallic × 0,28 sehingga pantulan hampir nol. `tools/poles_material.py` menaikkannya (G × 2,2 + 0,03, rata-rata 0,04–0,16 → 0,11–0,35) untuk unit dan bangunan hidup; sumber asli di `.cache/tex2-asli/`. Belum: normal map (shader bawaan Recoil untuk model glTF di proyek ini tidak memakainya), kotoran/aus, skala markas.
+
+**7. Tracer.** Model tracer 3D (balok kaku) untuk meriam, senjata kecil, dan artileri diganti garis cahaya aditif menghadap kamera di `efek_tempur_v2.lua` (wajik runcing, inti terang, ekor memudar; panjang meriam 3,6 m, kecil 2 m, artileri 1,6 m, tumbuh dari moncong). Roket tetap model. Ledakan, asap, kilatan, benturan sudah ada sebelumnya.
+
+**8. UI.**
+- Health bar di atas unit (`LuaUI/batang_hp.lua`): tampil untuk unit rusak, terpilih, atau sedang dibangun (bar biru = progres); hijau/kuning/merah; disembunyikan saat unit menjadi ikon.
+- Ikon strategis (`tools/buat_ikon.py` → `gamedata/icontypes.lua`, `icons/*.png`, `gamedata/ikon_unit.lua`): 12 bentuk orisinal (tank, tank ringan, destroyer, pengintai, artileri, robot, roket, insinyur, markas, pabrik, menara, bangunan), diwarnai warna tim. `UnitIconDist = 50` di `config/windows-defaults.cfg` (bawaan Recoil 200 tidak pernah menampilkan ikon di peta kecil; jarak dikali radius unit).
+- Belum: notifikasi (diserang, unit selesai), penanda tim selain warna.
+
+**9. Pengaturan.** Menu jeda (Esc) punya **Settings**: Master Volume, Battle Volume, Unit Icons (Near/Normal/Far/Very Far/Off), Shadows, Zoom Speed (tanda `ScrollWheelSpeed` dipertahankan supaya arah zoom tidak terbalik), Health Bars. Disimpan ke `springsettings.cfg`. Diuji lewat `tools/uji_visual/pengaturan.lua` (nilai berubah dan tersimpan).
+
+**10. Performa** (`tools/uji_visual/performa.lua.tpl`, Central Hill, campuran 7 jenis per tim bertempur, 1600 × 900, VSync mati, RTX 4060; fps sesaat dari 4 sampel):
+| Unit per tim | Total | Zoom dekat (400) | Zoom jauh (1800) |
+|---|---|---|---|
+| 50 | ±100 | 64–71 | 81–114 |
+| 100 | ±200 | 33–39 | 57–67 |
+| 200 | ±400 | 13–21 | 25–28 |
+| 400 | ±800 | 8–13 | 8–14 |
+
+A/B pada 200 per tim: tanpa gadget efek, LOD, suara mesin, benturan, lintasan: tidak berubah berarti. Kamera ke area kosong saat pertempuran yang sama: 280–400 fps (simulasi dan Lua ringan). Bayangan mati: jauh 25 → 60, dekat 15 → 27. Penyebab utama: **model penuh berat (Medium Tank ±76.000 segitiga) digambar di pass utama dan pass bayangan**; gadget LOD hanya mengganti pass utama, bayangan tetap model penuh.
+✅ (2026-11-24, user: "langsung aja kerjain") Perbaikan dipasang di `lod_unit.lua`: model LOD juga dicetak ke shadow map lewat callin `DrawShadowUnitsLua` (`shaders/lod_unit_bayangan.*.glsl`), bit bayangan engine (16) dimatikan untuk unit LOD, dan LOD masuk di 560 elmo (70 m, sebelumnya 150 m). Unit jauh tetap berbayangan (diperiksa di capture 750 elmo).
+| Unit per tim | Dekat sebelum → sesudah | Jauh sebelum → sesudah |
+|---|---|---|
+| 50 | 64–71 → 67–85 | 81–114 → 78–108 |
+| 100 | 33–39 → 35–50 | 57–67 → 68–115 |
+| 200 | 13–21 → 16–28 | 25–28 → 60–64 |
+| 400 | 8–13 → 8–18 | 8–14 → 19–45 |
+Sisa: zoom dekat dengan ratusan unit tetap berat karena model penuh (±76.000 segitiga Medium Tank). Model game lebih ringan diberikan ke GPT (mode B, `docs/model-ringan.md`); Claude memasukkannya dan mengukur ulang.
+
+## Verdant Ridge 4v4 masuk game (2026-11-24)
+Dibuat GPT (mode B, `docs/peta-punggung-hijau.md`); pendaftaran menu, skrip uji, dan daftar paket juga sudah disiapkan GPT. Claude memverifikasi:
+- AI vs AI headless (`uji_ronde.py`, 8 tim Normal): kontak pertama 2:09–2:11; di menit 8 tiap tim punya 22–30 unit tempur; titik berpindah tangan. Seed 2 Barat menang 21:40; seed 1 belum selesai di menit 25 (1.708 vs 1.435).
+- Visual: tampilan seluruh peta (ikon markas/unit di zoom jauh) dan pertempuran menit 8 di titik C, 161 fps dengan 297 unit (960 × 540).
+- Catatan: pohon tidak tampil di zoom paling jauh (jarak gambar fitur bawaan engine).

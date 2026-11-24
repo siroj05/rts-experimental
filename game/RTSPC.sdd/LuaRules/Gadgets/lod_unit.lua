@@ -12,11 +12,12 @@ if gadgetHandler:IsSyncedCode() then return false end
 local sp = Spring
 local directory = "objects3d/lod/"
 local stride = 9
-local enterDistSq, leaveDistSq = 1200 ^ 2, 1080 ^ 2
+-- 🟡 2026-11-24: LOD masuk 70 m dari kamera (sebelumnya 150 m), lihat docs/tahapan.md tahap 10.
+local enterDistSq, leaveDistSq = 560 ^ 2, 500 ^ 2
 local capacity = 128
 local instanceFormat = {{id = 6, name = "instance", size = 4, type = GL.UNSIGNED_INT}}
 local batches, active = {}, {}
-local shader, shadows
+local shader, shadows, shaderBayangan
 
 local function loadBatch(name, meta)
     local stem = name:gsub("_", "-")
@@ -77,6 +78,13 @@ function gadget:Initialize()
         return
     end
     shadows = gl.GetUniformLocation(shader, "withShadows")
+    -- Model LOD juga dicetak ke shadow map (DrawShadowUnitsLua), jadi engine tidak perlu menggambar bayangan model
+    -- penuh untuk unit LOD (bit 16). Tanpa shader ini, bayangan tetap dari engine (model penuh).
+    shaderBayangan = gl.CreateShader({
+        vertex = definitions .. VFS.LoadFile("shaders/lod_unit_bayangan.vert.glsl"),
+        fragment = definitions .. VFS.LoadFile("shaders/lod_unit_bayangan.frag.glsl"),
+    })
+    if not shaderBayangan then sp.Echo("[Unit LOD] bayangan: " .. gl.GetShaderLog()) end
     local catalog = VFS.Include(directory .. "index.lua")
     for name, meta in pairs(catalog) do
         local ok, batch = pcall(loadBatch, name, meta)
@@ -105,6 +113,7 @@ end
 function gadget:Shutdown()
     for unit, saved in pairs(active) do release(unit, saved) end
     if shader then gl.DeleteShader(shader) end
+    if shaderBayangan then gl.DeleteShader(shaderBayangan) end
     for _, batch in pairs(batches) do
         batch.vao:Delete()
         batch.vertices:Delete()
@@ -144,8 +153,11 @@ function gadget:Update()
                     -- The main opaque pass switches. Recoil still handles shadows and icons.
                     local updateMatrix = sp.GetUnitAlwaysUpdateMatrix(unit)
                     local team = sp.GetUnitTeam(unit)
-                    setRenderState(unit, team, mask - 1, true)
-                    if sp.GetUnitEngineDrawMask(unit) == mask - 1 then
+                    -- Bit 1 = pass utama; bit 16 = bayangan (digambar gadget ini kalau shader bayangan siap).
+                    local baru = mask - 1
+                    if shaderBayangan and math.floor(mask / 16) % 2 == 1 then baru = baru - 16 end
+                    setRenderState(unit, team, baru, true)
+                    if sp.GetUnitEngineDrawMask(unit) == baru then
                         saved = {mask = mask, updateMatrix = updateMatrix, team = team}
                         active[unit] = saved
                     end
@@ -160,6 +172,30 @@ function gadget:Update()
     for unit, saved in pairs(active) do
         if not keep[unit] then release(unit, saved) end
     end
+end
+
+local function gambarBatch()
+    for _, batch in pairs(batches) do
+        local ids = batch.visible
+        if #ids > 0 then
+            for first = 1, #ids, capacity do
+                local chunk = ids
+                if #ids > capacity then
+                    chunk = {}
+                    for index = first, math.min(first + capacity - 1, #ids) do chunk[#chunk + 1] = ids[index] end
+                end
+                batch.instances:InstanceDataFromUnitIDs(chunk, 6, 0)
+                batch.vao:DrawElements(GL.TRIANGLES, batch.indexCount, 0, #chunk)
+            end
+        end
+    end
+end
+
+function gadget:DrawShadowUnitsLua()
+    if not shaderBayangan or not next(active) then return end
+    gl.UseShader(shaderBayangan)
+    gambarBatch()
+    gl.UseShader(0)
 end
 
 function gadget:DrawWorldPreUnit()

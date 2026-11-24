@@ -6,6 +6,8 @@ import os
 import shutil
 import struct
 import subprocess
+
+from grading_medan import grade
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
@@ -93,6 +95,8 @@ def textures(bitmaps, work):
         water = smooth(-h / 26)
         color += (np.array([62, 109, 115]) - color) * (water * .92)[..., None]
         overview.paste(Image.fromarray(np.clip(color, 0, 255).astype(np.uint8)), (0, first))
+    work_image = grade(work_image)  # grading medan bersama (tahap 5)
+    overview = grade(overview)
     work_image.save(work / "warna.bmp")
     overview.resize((1024, 1024), Image.Resampling.LANCZOS).save(work / "minimap.bmp")
     return overview.resize((900, 900), Image.Resampling.LANCZOS)

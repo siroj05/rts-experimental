@@ -52,7 +52,7 @@ end
 
 local ledakan = {}
 local skenario = sp.GetModOptions().skenario
-local pakaiBekasBawaan = skenario == "sungai" or skenario == "pinus"
+local pakaiBekasBawaan = skenario == "sungai" or skenario == "pinus" or skenario == "hijau"
 local benturanTersembunyi = {}
 local function visible(x, y, z)
     local _, semuaTerlihat = sp.GetSpectatingState()

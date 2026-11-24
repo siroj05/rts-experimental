@@ -43,4 +43,10 @@ return {
         minWind = 5,
         maxWind = 12,
     },
+    grass = {
+        bladeHeight = 3.2,
+        bladeWidth = 0.29,
+        bladeWaveScale = 0.8,
+        bladeColor = {0.34, 0.42, 0.25},
+    },
 }

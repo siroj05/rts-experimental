@@ -20,7 +20,7 @@ movement[#movement + 1] =
     {name = "robot_kerja", footprintx = 1, footprintz = 1, speedmodclass = 1, maxslope = 28, maxwaterdepth = 0}
 
 local skenario = Spring.GetModOptions().skenario
-if skenario == "sungai" or skenario == "pinus" then
+if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" then
     -- Arsip dasar memberi nama treetype0…15 dalam huruf kecil.
     local env = {lowerkeys = function(defs) return defs end}
     for name, def in pairs(VFS.Include("features/treetype.lua", env, VFS.BASE)) do
@@ -44,6 +44,12 @@ if skenario == "sungai" or skenario == "pinus" then
         weapon.explosionScar = true
         weapon.scarDiameter, weapon.scarAlpha, weapon.scarTtl = diameter, .86, 140
     end
+end
+
+-- Ikon strategis zoom jauh (tools/buat_ikon.py, gamedata/icontypes.lua).
+local ikon = VFS.Include("gamedata/ikon_unit.lua")
+for key, unit in pairs(units) do
+    unit.iconType = ikon[key] or "bangunan"
 end
 
 for key, unit in pairs(units) do

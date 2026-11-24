@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+
+from grading_medan import grade
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
@@ -122,7 +124,7 @@ def main():
     for source in ("nvdxt.exe", "resources/geovent.bmp"):
         shutil.copy2(compiler / source, work / source)
 
-    terrain = color_map()
+    terrain = grade(color_map())  # grading medan bersama (tahap 5)
     terrain.save(work / "warna.bmp")
     z, x = np.ogrid[0:SIZE + 1:8, 0:SIZE + 1:8]
     np.rint(height(x, z) * (65535 / MAX_HEIGHT)).astype("<u2").tofile(work / "tinggi.raw")

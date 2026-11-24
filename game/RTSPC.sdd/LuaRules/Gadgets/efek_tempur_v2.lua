@@ -228,6 +228,19 @@ for id, def in pairs(WeaponDefs) do
     profilSenjata[id] = def.customParams.fx_jejak
 end
 
+-- Tracer cahaya (tahap 7, 🟡 2026-11-24): model tracer 3D lama tampak seperti balok kaku. Untuk meriam, senjata
+-- kecil, dan artileri, model disembunyikan dan diganti garis cahaya aditif menghadap kamera: inti tipis terang,
+-- pendar lebar, ujung depan paling terang dan ekor memudar. Panjang tumbuh dari moncong (tidak menembus laras).
+-- {panjang m, lebar pendar m, lebar inti m, warna}
+-- Peluru yang model tracernya sudah diambil alih Lua (disembunyikan).
+local luaDraw = {}
+local garisTracer = {
+    meriam = {3.6, 1.0, .22, {1, .78, .42}},
+    kecil = {2.0, .45, .10, {1, .86, .55}},
+    artileri = {1.6, 1.3, .28, {1, .70, .36}},
+}
+
+
 local function jejak(frame)
     local t = waktu(frame)
     local _, fullView = sp.GetSpectatingState()
@@ -284,9 +297,18 @@ function gadget:GameFrame(frame)
             local _,_,_,speed = sp.GetProjectileVelocity(id)
             local distance = math.sqrt((x-origin.x)^2+(y-origin.y)^2+(z-origin.z)^2)
             if speed and distance >= tracerLength + speed then
-                sp.UnitRendering.SetProjectileLuaDraw(id, false)
+                -- Senjata bergaris cahaya tetap digambar Lua (model tracer disembunyikan seumur peluru).
+                if not garisTracer[profilSenjata[sp.GetProjectileDefID(id)]] then
+                    sp.UnitRendering.SetProjectileLuaDraw(id, false)
+                end
                 emerging[id] = nil
             end
+        end
+    end
+    -- Bersihkan penanda Lua draw untuk peluru yang sudah hilang.
+    if frame % 300 == 0 then
+        for id in pairs(luaDraw) do
+            if not sp.GetProjectilePosition(id) then luaDraw[id] = nil end
         end
     end
     if not cloudShader then return end
@@ -311,7 +333,62 @@ function gadget:GameFrame(frame)
     end
 end
 
+local function gambarTracer()
+    local _, fullView = sp.GetSpectatingState()
+    local ally = sp.GetMyAllyTeamID()
+    local cx, cy, cz = sp.GetCameraPosition()
+    local offset = sp.GetFrameTimeOffset()
+    for _, id in ipairs(sp.GetVisibleProjectiles(fullView and -1 or ally, true, true, false) or {}) do
+        local g = garisTracer[profilSenjata[sp.GetProjectileDefID(id)]]
+        if g and not luaDraw[id] then
+            -- Peluru yang lahir di luar pandangan (atau senjata kecil) belum diambil alih: sembunyikan modelnya.
+            luaDraw[id] = true
+            sp.UnitRendering.SetProjectileLuaDraw(id, true)
+        end
+        if g then
+            local x, y, z = sp.GetProjectilePosition(id)
+            local vx, vy, vz, speed = sp.GetProjectileVelocity(id)
+            if x and speed and speed > 0 and (fullView or sp.IsPosInLos(x, y, z, ally)) then
+                x, y, z = x + vx * offset, y + vy * offset, z + vz * offset
+                local dx, dy, dz = vx / speed, vy / speed, vz / speed
+                local panjang = g[1] * elmo
+                local o = emerging[id]
+                if o then panjang = math.min(panjang, (x - o.x) * dx + (y - o.y) * dy + (z - o.z) * dz) end
+                if panjang > 1 then
+                    local tx, ty, tz = x - dx * panjang, y - dy * panjang, z - dz * panjang
+                    -- Sisi = dir × arah ke kamera, supaya pita selalu menghadap kamera.
+                    local ex, ey, ez = cx - x, cy - y, cz - z
+                    local sx, sy, sz = dy * ez - dz * ey, dz * ex - dx * ez, dx * ey - dy * ex
+                    local sl = math.sqrt(sx * sx + sy * sy + sz * sz)
+                    if sl > 1e-3 then
+                        sx, sy, sz = sx / sl, sy / sl, sz / sl
+                        local c = g[4]
+                        for lapis = 1, 2 do
+                            local w = (lapis == 1 and g[2] or g[3]) * elmo * .5
+                            local a = lapis == 1 and .55 or 1
+                            local r, gg, b = c[1], c[2], c[3]
+                            if lapis == 2 then r, gg, b = 1, .95, .82 end
+                            -- Wajik: ujung runcing, paling tebal 12% di belakang ujung, meruncing ke ekor. Tepi alpha 0
+                            -- supaya pendar lembut.
+                            local mx, my, mz = x - dx * panjang * .12, y - dy * panjang * .12, z - dz * panjang * .12
+                            local lx, ly, lz = mx + sx * w, my + sy * w, mz + sz * w
+                            local rx, ry, rz = mx - sx * w, my - sy * w, mz - sz * w
+                            for _, t in ipairs({{x, y, z, a * .85, lx, ly, lz}, {x, y, z, a * .85, rx, ry, rz},
+                                    {tx, ty, tz, 0, lx, ly, lz}, {tx, ty, tz, 0, rx, ry, rz}}) do
+                                gl.Color(r, gg, b, t[4]); gl.Vertex(t[1], t[2], t[3])
+                                gl.Color(r, gg, b, 0); gl.Vertex(t[5], t[6], t[7])
+                                gl.Color(r, gg, b, a); gl.Vertex(mx, my, mz)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 function gadget:DrawProjectile(id)
+    if garisTracer[profilSenjata[sp.GetProjectileDefID(id)]] then return true end
     local origin = emerging[id]
     if not origin then return false end
     local x,y,z = sp.GetProjectilePosition(id)
@@ -429,6 +506,13 @@ local function drawSparks(list, hot)
 end
 
 function gadget:DrawWorld()
+    gl.DepthTest(true)
+    gl.DepthMask(false)
+    gl.Blending(GL.SRC_ALPHA, GL.ONE)
+    gl.BeginEnd(GL.TRIANGLES, gambarTracer)
+    gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+    gl.DepthMask(true)
+    gl.Color(1, 1, 1, 1)
     if not cloudShader or (#clouds == 0 and #fires == 0 and #sparks == 0) then return end
     local now = waktu(sp.GetGameFrame() + sp.GetFrameTimeOffset())
     local drawCloud, drawFire, drawBits = {}, {}, {}

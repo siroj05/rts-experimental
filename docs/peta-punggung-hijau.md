@@ -1,6 +1,6 @@
 # Verdant Ridge 4v4
 
-Kandidat peta perebutan empat titik untuk Recoil 2026.09.03. Buka [Uji Punggung Hijau 4v4.cmd](../Uji%20Punggung%20Hijau%204v4.cmd) untuk bermain sebagai pemain pertama di barat bersama tiga sekutu AI melawan empat AI timur. Peluncur menjalankan paket dari folder kerja privat `.cache/main-punggung-hijau/`. [Denah markas, titik dan besi](../maps/punggung-hijau-denah.png)
+Peta perebutan empat titik untuk Recoil 2026.09.03. Pilih **Verdant Ridge** di menu **Skirmish**. Buka [Uji Punggung Hijau 4v4.cmd](../Uji%20Punggung%20Hijau%204v4.cmd) untuk bermain sebagai pemain pertama di barat bersama tiga sekutu AI melawan empat AI timur. Peluncur langsung dan menu memakai definisi game yang sama. [Denah markas, titik dan besi](../maps/punggung-hijau-denah.png)
 
 ## Ukuran dan tempo
 
@@ -12,8 +12,8 @@ Kandidat peta perebutan empat titik untuk Recoil 2026.09.03. Buka [Uji Punggung 
 | Elevasi | −3,10 hingga +42,22 m terhadap muka air |
 | Area markas | 8 bidang datar 112 × 112 m, elevasi 7 m |
 | Vegetasi dan medan | 4.100 pinus, 11,35% permukaan dominan pasir, 18,07% sel typemap terblokir |
-| Arsip | 23.742.670 byte atau 22,64 MiB |
-| Target kemenangan | 100.000 poin per kubu, 60 poin/detik per titik, radius 88 elmo atau 11 m |
+| Arsip | 23.742.699 byte atau 22,64 MiB |
+| Target kemenangan | 2.400 poin per kubu, 1 poin/detik per titik, radius 88 elmo atau 11 m |
 
 Empat jalur utama menghubungkan barat–timur. Pada penampang utara–selatan, pita ±25 m dari garis tengah masing-masing jalur bebas sel blokir di antara barisan markas. Jarak minimum pusat pohon ke garis tengah 27,97 m. Celah batu selebar nominal 16 m membuka jalur memotong antarkoridor di kedua sisi. Anak sungai membagi dua kawasan tengah, dengan ambang dangkal yang naik melewati permukaan air. Medan, blokir dan penempatan pohon dicerminkan terhadap X = 4096 elmo. Selisih tinggi maksimum kedua sisi pada heightmap final 0 m.
 
@@ -50,20 +50,20 @@ $blender = 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe'
 python tools/buat_punggung_hijau.py compile
 ```
 
-`prepare` membangun sumber raster di `.cache/punggung-hijau-4v4/`. Blender menyimpan sumber berisi albedo tertanam serta render RTS. Ekspor balik dari mesh tersimpan menghasilkan heightmap identik byte per byte. Untuk revisi topografi besar, perbarui juga mask blokir, vegetasi dan albedo di [modul tata letak](../tools/punggung_hijau_layout.py). PyMapConv 0.6.3 mengemas SMF/SMT dan [mapinfo](../maps/mapinfo-punggung-hijau-4v4.lua) menjadi [arsip kandidat](../maps/punggung-hijau-4v4.sdz).
+`prepare` membangun sumber raster di `.cache/punggung-hijau-4v4/`. Blender menyimpan sumber berisi albedo tertanam serta render RTS. Ekspor balik dari mesh tersimpan menghasilkan heightmap identik byte per byte. Untuk revisi topografi besar, perbarui juga mask blokir, vegetasi dan albedo di [modul tata letak](../tools/punggung_hijau_layout.py). PyMapConv 0.6.3 mengemas SMF/SMT dan [mapinfo](../maps/mapinfo-punggung-hijau-4v4.lua) menjadi [arsip peta](../maps/punggung-hijau-4v4.sdz).
 
-## Uji di Recoil
+## Uji kandidat sebelum integrasi
 
-- **Peluncuran langsung.** Peluncur membuka Verdant Ridge 4v4 1.0 dengan delapan tim. Log grafis mencapai frame permainan tanpa error Lua. Log lokal ada di `.cache/main-punggung-hijau/infolog.txt`.
+- **Peluncuran langsung.** Peluncur membuka Verdant Ridge 4v4 1.0 dengan delapan tim. Log grafis mencapai frame permainan tanpa error Lua. Log peluncuran langsung kini ada di `.deps/recoil/2026.09.03/infolog.txt`.
 - **Gerak.** Dari tiap area markas, delapan unit uji berangkat dari petak bebas di depan HQ. Satu Medium Tank dan satu Infantry Robot menerima satu perintah Move ke masing-masing titik A–D. AI lawan dan tembakan dinonaktifkan di salinan uji agar lintasan tiap unit dapat diukur. Pusat unit dicocokkan dengan kecepatan kelas medan setiap frame sampai masuk radius 11 m. **64/64 tiba, 0 melewati sel blokir**, dengan 4.100 fitur pinus fisik aktif. Waktu simulasi tank 68,5–165,9 detik, robot 68,2–200,0 detik. Hasil terakhir di `.cache/uji-punggung-rute-fir/uji.log`, frame 6002.
 - **Grafis.** RTX 4060, 1600 × 900, VSync mati, 38 entitas unit/bangunan pada saat pengambilan. Kamera seluruh peta dengan HUD tersembunyi membaca **375 FPS**, kamera dekat markas dengan HUD **278 FPS**. Ini dua pembacaan saat screenshot di awal pertandingan. Dengan HUD juga tampil pada kamera jauh, pengambilan terpisah mencatat 281 FPS jauh dan 257 FPS dekat. Beban pertempuran akhir belum diukur.
 - **Bukti.** [Seluruh peta](punggung-hijau/shot-00-seluruh-peta.jpg) · [Markas barat](punggung-hijau/shot-01-markas-barat.jpg) · [A](punggung-hijau/shot-02-A-punggung-bukit.jpg) · [B](punggung-hijau/shot-03-B-padang.jpg) · [C](punggung-hijau/shot-04-C-celah.jpg) · [D](punggung-hijau/shot-05-D-pasir.jpg). PNG asli dan log pengambilan ada di `.cache/uji-visual/verdant-final/`.
 
-## Serah terima untuk Claude
+## Integrasi game utama
 
-Kunci skenario `hijau`, nama start script `Verdant Ridge 4v4 1.0`, arsip `punggung-hijau-4v4.sdz`. Satu baris pemilih skenario menghubungkan ketiganya. Untuk menu gunakan [start script](../game/RTSPC.sdd/gamedata/skenario/hijau-start.txt).
+Menu dan paket Windows membuka `punggung-hijau-4v4.sdz` lewat skenario `hijau` dan [start script 4v4](../game/RTSPC.sdd/gamedata/skenario/hijau-start.txt). Game memuat model pinus dari arsip dasar Recoil. Mapinfo menggunakan preset rumput, cahaya dan atmosfer tahap 5. Skor mengikuti aturan peta aktif, dengan 1 poin per detik per titik dan target 2.400.
 
-Saat ini game utama memuat definisi pohon bawaan khusus skenario sungai dan pinus. Peluncur kandidat mendaftarkan pohon hanya pada salinan privat. Saat mengintegrasikan kandidat ke menu/paket Windows, muat `features/treetype.lua` dari `VFS.BASE` ke tabel featuredefs bagi skenario `hijau`. Pengujian grafis dan gerak di atas menggunakan definisi pohon ini. Logika skor, kemampuan mengarungi air dan jejak kendaraan bisa ditentukan terpisah dari pendaftaran model pohon.
+Uji pada 24 November 2026 memilih Verdant Ridge lewat dropdown lalu menekan **Start Match** pada runtime yang diekstrak dari EXE lokal `7f256062c80b`. Recoil memuat delapan markas, empat titik, 40 ladang, 4.100 pinus bermodel, AI Normal dan opsi kembali ke Skirmish. Uji gerak terpisah dengan definisi game utama meluluskan 64 dari 64 rute tanpa melewati sel blokir. [Tampilan menu](punggung-hijau/integrasi-menu.jpg) ? [Pertandingan dari menu](punggung-hijau/integrasi-game.jpg)
 
 Dari zoom paling jauh, pencerminan tebing dan hutan terbaca jelas. Pasir D dan padang B sama-sama berada pada elevasi 7 m, sehingga warna permukaan dan posisi tebing menjadi pembeda utama. Uji rute menggunakan satu skenario deterministik. Lama pertandingan penuh dan keseimbangan kemenangan antartim masih perlu playtest.
 

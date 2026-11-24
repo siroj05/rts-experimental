@@ -5,6 +5,7 @@ local maps = {
     {key = "bukit", name = "Central Hill", info = "mapinfo-bukit-tengah.lua", size = 2048, z = 316, depth = 1416},
     {key = "sungai", name = "River Valley", info = "mapinfo-lembah-sungai.lua", size = 4096, z = 0, depth = 4096},
     {key = "pinus", name = "Pine Crossing", info = "mapinfo-lintasan-pinus-4v4.lua", size = 4096, z = 0, depth = 3072},
+    {key = "hijau", name = "Verdant Ridge", info = "mapinfo-punggung-hijau-4v4.lua", size = 8192, z = 0, depth = 6144},
 }
 local mapPicker = {x = 819, y = 602, w = 413, h = 32}
 local mapOptions = {}
@@ -305,7 +306,7 @@ function DrawScreen()
 
     rect(47, 66, 1185, 1, line)
     local metres = entry.size / 8
-    letter(("%d × %d m"):format(metres, entry.key == "pinus" and entry.depth / 8 or metres), 47, 39, 14, subdued)
+    letter(("%d × %d m"):format(metres, entry.z == 0 and entry.depth / 8 or metres), 47, 39, 14, subdued)
     letter("Space  Map list     ← →  Change map     ↑ ↓  Change difficulty", 1232, 39, 14, subdued, "r")
     drawMapPicker(mx, my)
     gl.PopMatrix()

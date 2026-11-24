@@ -35,6 +35,8 @@ def main():
     ap.add_argument("--batas", type=float, default=600)
     ap.add_argument("--lebar", type=int, default=1600)
     ap.add_argument("--tinggi", type=int, default=900)
+    ap.add_argument("--cfg", nargs="*", default=[], help="baris springsettings tambahan, mis. Shadows=0")
+    ap.add_argument("--tanpa", nargs="*", default=[], help="file di game/RTSPC.sdd yang dihapus dari salinan uji (A/B)")
     a = ap.parse_args()
 
     scratch = ROOT / ".cache/uji-visual" / a.nama
@@ -47,9 +49,12 @@ def main():
         shutil.copy2(sdz, scratch / "maps")
     game = scratch / "games/RTSPC.sdd"
     shutil.copytree(GAME, game, dirs_exist_ok=True)
+    for f in a.tanpa:
+        (game / f).unlink()
     (scratch / "springsettings.cfg").write_text(
         f"Fullscreen=0\nXResolutionWindowed={a.lebar}\nYResolutionWindowed={a.tinggi}\n"
-        "WindowPosX=40\nWindowPosY=40\nVSync=0\nWindowBorderless=0\n", encoding="ascii")
+        "WindowPosX=40\nWindowPosY=40\nVSync=0\nWindowBorderless=0\n" + "".join(c + "\n" for c in a.cfg),
+        encoding="ascii")
     hook = (HOOKS / "dasar.lua").read_text(encoding="utf-8") + "\n" + Path(a.hook).read_text(encoding="utf-8")
     with (game / "LuaUI/main.lua").open("a", encoding="utf-8") as ui:
         ui.write("\n" + hook)
