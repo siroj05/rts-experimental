@@ -4,8 +4,13 @@ local profiles = VFS.Include(root .. "profil_ai.lua", nil, VFS.MENU)
 local maps = {
     {key = "bukit", name = "Central Hill", info = "mapinfo-bukit-tengah.lua", size = 2048, z = 316, depth = 1416},
     {key = "sungai", name = "River Valley", info = "mapinfo-lembah-sungai.lua", size = 4096, z = 0, depth = 4096},
+    {key = "pinus", name = "Pine Crossing", info = "mapinfo-lintasan-pinus-4v4.lua", size = 4096, z = 0, depth = 3072},
 }
-local mapButtons = {{x = 873, y = 602, w = 173, h = 32}, {x = 1053, y = 602, w = 179, h = 32}}
+local mapPicker = {x = 819, y = 602, w = 413, h = 32}
+local mapOptions = {}
+for i = 1, #maps do
+    mapOptions[i] = {x = mapPicker.x, y = mapPicker.y - 4 - i * mapPicker.h, w = mapPicker.w, h = mapPicker.h}
+end
 local chartHeight = 690 * 1416 / 2048
 for _, entry in ipairs(maps) do
     entry.scenario = VFS.Include(root .. entry.key .. ".lua", nil, VFS.MENU)
@@ -39,6 +44,7 @@ local display, body
 local onMenu, pending = false, false
 local selected = 2
 local selectedMap = 1
+local mapFocus
 local pressed
 local keys = {}
 
@@ -80,6 +86,10 @@ end
 
 local function title(message, x, y, size, color, align)
     printText(display, message, x, y, size, color, align)
+end
+
+local function scoreText(value)
+    return (tostring(value):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
 end
 
 local function viewport()
@@ -140,13 +150,15 @@ local function terrain(entry)
         title(point.nama, x, y - 6, 17, bone, "c")
     end
 
-    for team = 0, 1 do
+    for team = 0, #map.awal - 1 do
         local startPos = entry.mapinfo.teams[team].startPos
         local x, y = coord(entry, startPos.x, startPos.z)
-        local color = team == 0 and blue or red
+        local color = team < #map.awal / 2 and blue or red
         diamond(x, y, 15, color)
         title("HQ", x, y - 5, 13, bone, "c")
-        letter(team == 0 and "YOUR HQ" or "ENEMY HQ", x, y - 39, 12, ink, "c")
+        if #map.awal == 2 or team == 0 then
+            letter(team == 0 and "YOUR HQ" or "ENEMY HQ", x, y - 34, 12, ink, "c")
+        end
     end
     local x, y = 734, 570
     title("N", x, y + 13, 15, ink, "c")
@@ -177,6 +189,32 @@ local function startMatch()
     pending = true
 end
 
+local function drawMapPicker(mx, my)
+    local r = mapPicker
+    local active = mapFocus or inside(mx, my, r)
+    rect(r.x, r.y, r.w, r.h, active and {0.25, 0.24, 0.18, 1} or {0.16, 0.18, 0.14, 1})
+    rect(r.x, r.y, r.w, 1, active and orange or line)
+    letter("MAP", r.x + 13, r.y + 10, 14, subdued)
+    segment(r.x + 56, r.y + 8, r.x + 56, r.y + r.h - 8, line)
+    letter(maps[selectedMap].name, r.x + 69, r.y + 9, 17, bone)
+    local x, y = r.x + r.w - 17, r.y + r.h / 2
+    local d = mapFocus and -1 or 1
+    segment(x - 5, y + 2 * d, x, y - 3 * d, bone)
+    segment(x, y - 3 * d, x + 5, y + 2 * d, bone)
+    if not mapFocus then return end
+
+    local bottom = mapOptions[#mapOptions].y
+    rect(r.x - 1, bottom - 1, r.w + 2, r.y - 2 - bottom, line)
+    for i, option in ipairs(mapOptions) do
+        local hover = inside(mx, my, option)
+        local fill = hover and {0.30, 0.28, 0.20, 1} or i == mapFocus and {0.25, 0.24, 0.18, 1} or background
+        rect(option.x, option.y, option.w, option.h, fill)
+        rect(option.x, option.y, option.w, 1, line)
+        letter(maps[i].name, option.x + 69, option.y + 9, 17, bone)
+        if i == selectedMap then diamond(x, option.y + option.h / 2, 4, orange) end
+    end
+end
+
 function ActivateMenu()
     if not display then
         display = assert(gl.LoadFont(root .. "fonts/BarlowCondensed-Bold.ttf", 84, 0, 0))
@@ -184,9 +222,10 @@ function ActivateMenu()
         keys = {up = sp.GetKeyCode("up"), down = sp.GetKeyCode("down"),
             left = sp.GetKeyCode("left"), right = sp.GetKeyCode("right"),
             enter = sp.GetKeyCode("return"), numpadEnter = sp.GetKeyCode("numpad_enter"),
-            escape = sp.GetKeyCode("escape")}
+            escape = sp.GetKeyCode("escape"), space = sp.GetKeyCode("space")}
     end
     onMenu, pending, pressed = true, false, nil
+    mapFocus = nil
     sp.SetWMCaption("RTS PC | Skirmish")
     local previous = sp.GetConfigString(setting, "normal")
     for i, key in ipairs(levels) do if key == previous then selected = i end end
@@ -236,21 +275,13 @@ function DrawScreen()
 
     local entry = maps[selectedMap]
     terrain(entry)
-    letter("MAP", 821, 612, 14, subdued)
-    for i, button in ipairs(mapButtons) do
-        local current, hover = i == selectedMap, inside(mx, my, button)
-        local fill = current and {0.25, 0.24, 0.18, 1} or hover and {0.16, 0.18, 0.14, 1}
-        if fill then rect(button.x, button.y, button.w, button.h, fill) end
-        rect(button.x, button.y, button.w, 1, current and orange or line)
-        letter(maps[i].name, button.x + button.w / 2, button.y + 9, 17, current and bone or subdued, "c")
-    end
     title(entry.name:upper(), 818, 541, 63, bone)
-    letter("Control Points  /  1 vs 1", 821, 510, 20, subdued)
+    local sisi = #entry.scenario.awal / 2
+    letter(("Control Points  /  %d vs %d"):format(sisi, sisi), 821, 510, 20, subdued)
     rect(819, 493, 413, 1, line)
-    local target = entry.scenario.targetSkor
-    letter(("Reach %s points or destroy the"):format(target == 1000 and "1,000" or target),
+    letter(("Reach %s points or destroy"):format(scoreText(entry.scenario.targetSkor)),
         821, 469, 19, bone)
-    letter("enemy Command Core.", 821, 446, 19, bone)
+    letter(sisi > 1 and "all enemy Command Cores." or "the enemy Command Core.", 821, 446, 19, bone)
     letter("AI DIFFICULTY", 821, 423, 14, subdued)
     for i, r in ipairs(rows) do
         local profile = profiles[levels[i]]
@@ -274,15 +305,20 @@ function DrawScreen()
 
     rect(47, 66, 1185, 1, line)
     local metres = entry.size / 8
-    letter(("%d × %d m"):format(metres, metres), 47, 39, 14, subdued)
-    letter("← →  Change map     ↑ ↓  Change difficulty", 1232, 39, 14, subdued, "r")
+    letter(("%d × %d m"):format(metres, entry.key == "pinus" and entry.depth / 8 or metres), 47, 39, 14, subdued)
+    letter("Space  Map list     ← →  Change map     ↑ ↓  Change difficulty", 1232, 39, 14, subdued, "r")
+    drawMapPicker(mx, my)
     gl.PopMatrix()
     gl.Color(1, 1, 1, 1)
 end
 
 local function actionAt(x, y)
     x, y = boardPoint(x, y)
-    for i, r in ipairs(mapButtons) do if inside(x, y, r) then return maps[i].key end end
+    if inside(x, y, mapPicker) then return "map" end
+    if mapFocus then
+        for i, r in ipairs(mapOptions) do if inside(x, y, r) then return maps[i].key end end
+        return "dismiss-map"
+    end
     for i, r in ipairs(rows) do if inside(x, y, r) then return i end end
     if inside(x, y, deploy) then return "start" end
     if inside(x, y, exit) then return "exit" end
@@ -302,20 +338,38 @@ function MouseRelease(x, y, button)
     local action = pressed
     pressed = nil
     if not onMenu or button ~= 1 or not action or action ~= actionAt(x, y) then return end
-    if action == "start" then startMatch()
+    if action == "map" then
+        if mapFocus then mapFocus = nil else mapFocus = selectedMap end
+    elseif action == "dismiss-map" then mapFocus = nil
+    elseif action == "start" then startMatch()
     elseif action == "exit" then sp.Quit()
     elseif type(action) == "number" then selected = action
     else
         for i, entry in ipairs(maps) do if entry.key == action then selectedMap = i end end
+        mapFocus = nil
     end
 end
 
 function KeyPress(key, _, repeatKey)
     if not onMenu then return false end
+    if mapFocus then
+        if key == keys.up or key == keys.down then
+            mapFocus = math.max(1, math.min(#maps, mapFocus + (key == keys.up and -1 or 1)))
+        elseif not repeatKey then
+            if key == keys.enter or key == keys.numpadEnter then
+                selectedMap, mapFocus = mapFocus, nil
+            elseif key == keys.escape or key == keys.space then
+                mapFocus = nil
+            end
+        end
+        return true
+    end
     if key == keys.up or key == keys.down then
         selected = math.max(1, math.min(#levels, selected + (key == keys.up and -1 or 1)))
     elseif key == keys.left or key == keys.right then
         selectedMap = math.max(1, math.min(#maps, selectedMap + (key == keys.left and -1 or 1)))
+    elseif key == keys.space and not repeatKey then
+        mapFocus = selectedMap
     elseif (key == keys.enter or key == keys.numpadEnter) and not repeatKey then
         startMatch()
     elseif key == keys.escape and not repeatKey then

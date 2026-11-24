@@ -51,7 +51,8 @@ if gadgetHandler:IsSyncedCode() then
 end
 
 local ledakan = {}
-local pakaiBekasBawaan = sp.GetModOptions().skenario == "sungai"
+local skenario = sp.GetModOptions().skenario
+local pakaiBekasBawaan = skenario == "sungai" or skenario == "pinus"
 local benturanTersembunyi = {}
 local function visible(x, y, z)
     local _, semuaTerlihat = sp.GetSpectatingState()

@@ -7,7 +7,7 @@ from impor_medium_tank import GAME
 from impor_unit_fraksi1 import Pieces
 
 
-def tracer(stem, width, length, color):
+def tracer(stem, width, length, color, tail_fade=.36):
     # Pieces menerima meter, Y atas dan -Z depan. Titik proyektil ada di ujung depan.
     half = width / 2
     corners = np.array([[-half, -half, 0], [half, -half, 0], [half, half, 0], [-half, half, 0],
@@ -28,13 +28,14 @@ def tracer(stem, width, length, color):
     diffuse = Image.new("RGBA", (16, 4))
     for x in range(diffuse.width):
         t = x / (diffuse.width - 1)
-        rgb = tuple(round(c * (1 - .36 * t)) for c in color)
+        rgb = tuple(round(c * (1 - tail_fade * t)) for c in color)
         diffuse.paste((*rgb, 0), (x, 0, x + 1, diffuse.height))
     diffuse.save(GAME / "unittextures" / f"{stem}-tex1.png")
     Image.new("RGBA", diffuse.size, (255, 0, 0, 255)).save(GAME / "unittextures" / f"{stem}-tex2.png")
 
 
 if __name__ == "__main__":
-    tracer("fx-tracer-meriam", .22, 3.2, (255, 218, 139))
+    # Panjang balok meriam mengikuti desain V1.
+    tracer("fx-tracer-meriam", .22, 1.4, (255, 218, 139), tail_fade=0)
     tracer("fx-tracer-kecil", .12, 1.45, (255, 227, 160))
     tracer("fx-tracer-roket", .27, 1.55, (255, 171, 78))

@@ -19,7 +19,8 @@ movement[#movement + 1] = {
 movement[#movement + 1] =
     {name = "robot_kerja", footprintx = 1, footprintz = 1, speedmodclass = 1, maxslope = 28, maxwaterdepth = 0}
 
-if Spring.GetModOptions().skenario == "sungai" then
+local skenario = Spring.GetModOptions().skenario
+if skenario == "sungai" or skenario == "pinus" then
     -- Arsip dasar memberi nama treetype0…15 dalam huruf kecil.
     local env = {lowerkeys = function(defs) return defs end}
     for name, def in pairs(VFS.Include("features/treetype.lua", env, VFS.BASE)) do

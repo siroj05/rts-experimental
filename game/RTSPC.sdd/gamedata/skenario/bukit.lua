@@ -2,8 +2,8 @@
 return {
     radius = 80,
     detikRebut = 4,
-    poinPerDetik = 5,
-    targetSkor = 1000,
+    poinPerDetik = 1 --[[ Tempo 🟡 2026-11-24: 2 titik 20 menit, 4 titik 10 menit ]],
+    targetSkor = 2400,
     titik = {
         {nama = "A", x = 776, z = 496},
         {nama = "B", x = 1272, z = 496},

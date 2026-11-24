@@ -43,7 +43,10 @@ end
         # Beri waktu pemulihan walau AI menguasai semua titik dalam fixture.
         map_rules = game / "gamedata/skenario/bukit.lua"
         content = map_rules.read_text(encoding="utf-8")
-        map_rules.write_text(content.replace("targetSkor = 1000", "targetSkor = 999999"), encoding="utf-8")
+        content, count = re.subn(r"\btargetSkor\s*=\s*\d+\b", "targetSkor = 999999", content)
+        if count != 1:
+            raise ValueError("Target skor fixture tidak ditemukan secara unik")
+        map_rules.write_text(content, encoding="utf-8")
     config = (GAME / "gamedata/skenario/bukit-start.txt").read_text(encoding="utf-8")
     config = config.replace("GameStartDelay=1;", "GameStartDelay=1;\n MinSpeed=10;\n MaxSpeed=10;")
     config = config.replace("FixedRNGSeed=1;", f"FixedRNGSeed={seed};")

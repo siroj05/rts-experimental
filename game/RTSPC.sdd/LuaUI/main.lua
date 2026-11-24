@@ -57,7 +57,8 @@ function Update()
         local view = Spring.GetCameraState()
         local offset = aturan.awal[tim + 1].kamera
         view.px, view.py, view.pz = x + offset[1], y, z + offset[2]
-        view.height, view.angle = 510, 1.12
+        view.height = 660
+        view.angle = math.rad(37) -- Sudut dari vertikal pada kamera overhead Recoil.
         Spring.SetCameraState(view, 0)
     else
         local view = {name = "ov", px = Game.mapSizeX * 0.5, py = 0, pz = Game.mapSizeZ * 0.5}
@@ -169,6 +170,7 @@ function DrawWorld()
         end
     end
     hud.DrawRally()
+    hud.DrawWeaponRanges()
     gl.LineWidth(1)
     gl.DepthTest(false)
     gl.Color(1, 1, 1, 1)

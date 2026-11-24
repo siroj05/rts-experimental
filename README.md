@@ -37,6 +37,8 @@ Jalankan `python tools/build_windows.py` dari Windows untuk membuat `dist/window
 
 Klik dua kali executable untuk mengekstrak game ke `%LOCALAPPDATA%\RTS PC v3\<commit>` dan membuka menu skirmish offline. Untuk ekstraksi portabel, jalankan `RTS-PC-v3-win-x64.exe --extract "C:\Games\RTS PC v3"` lalu buka `RTS PC.exe` dari folder hasil ekstraksi. Informasi build dan sumber Recoil tersedia di `BUILD.txt`.
 
+Paket baru memakai mode jendela dan VSync standar dari `config/windows-defaults.cfg`. Keduanya disetel lewat `springsettings.cfg` karena Recoil 2026.09.03 mengabaikan `--window` ketika fullscreen masih aktif di konfigurasi.
+
 ## Recoil
 
 ```powershell
@@ -52,15 +54,11 @@ Paket game utama ada di [game/RTSPC.sdd](game/RTSPC.sdd). Launcher menyalin pake
 
 ## Uji langsung
 
-Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Pilih **Central Hill** atau **River Valley**, pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Menu menyimpan peta dan tingkat kesulitan saat pertandingan dimulai. Panah kiri/kanan memilih peta, panah atas/bawah memilih tingkat AI, dan Enter memulai pertandingan.
+Klik dua kali `Uji Bukit 1v1.cmd` untuk membuka menu skirmish offline di Recoil. Buka dropdown **Map** untuk memilih **Central Hill** atau **River Valley**. Pilih **Easy**, **Normal**, atau **Hard**, lalu klik **Start Match**. Menu menyimpan peta dan tingkat kesulitan saat pertandingan dimulai. Space membuka daftar peta. Di luar daftar, panah kiri/kanan memilih peta, panah atas/bawah memilih tingkat AI, dan Enter memulai pertandingan.
 
 Saat pertandingan skirmish, tekan **Esc** untuk menjeda simulasi. Pilih **Resume**, **Restart Match**, atau **Back to Skirmish**. Memulai ulang memakai peta dan tingkat kesulitan AI pertandingan itu. Mode uji langsung tetap memakai kontrol Recoil.
 
-| AI | Interval keputusan | Ambang produksi pasukan |
-| --- | ---: | ---: |
-| Easy | 4 detik | 6 |
-| Normal | 2 detik | 9 |
-| Hard | 1 detik | 12 |
+Angka AI ada di `game/RTSPC.sdd/gamedata/profil_ai.lua`: Easy, Normal, dan Hard berbeda pada interval keputusan (4/2/1 detik), jumlah Engineer Bot (1/2/3), batas pasukan (20/36/50), ukuran gelombang (4/6/8), dan jumlah ekstraktor. Cara kerja AI dan hasil ujinya ada di `docs/tahapan.md`.
 
 Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
 
@@ -87,7 +85,7 @@ Saat pabrik dipilih, klik kiri kartu unit untuk menambah pesanan dan klik kanan 
 - Lawan membagi pasukannya untuk mengambil titik kosong, memperkuat titik yang diperebutkan, dan mengambil kembali titik yang hilang. Ia memakai status titik yang tampil di HUD dan posisi pasukan lawan yang terlihat oleh timnya.
 - A dan B berada di jalur utara, C dan D di jalur selatan. Bawa unit tempur ke lingkaran selama 4 detik untuk mengambil titik. Titik tetap dimiliki setelah unit pergi dan bisa direbut kembali.
 - Saat kedua tim berada di lingkaran yang sama, perebutan dan skor titik itu berhenti. Saat penantang sendirian di dalam lingkaran, pemilik lama juga berhenti mendapat skor sampai titik aman atau berpindah.
-- Setiap titik aman memberi **5 poin per detik**. Tim pertama yang mencapai **1.000 poin** menang. Jika keduanya mencapainya pada detik yang sama, hasilnya seri. Pada mode ekonomi, kehilangan Inti Komando juga mengakhiri pertandingan. Layar hasil menyediakan tombol **Play Again**.
+- Setiap titik aman memberi **1 poin per detik**. Tim pertama yang mencapai **2.400 poin** sambil unggul menang (memegang 2 titik sekitar 20 menit, 4 titik 10 menit). Jika keduanya mencapainya dengan skor sama, pertandingan berlanjut sampai ada yang unggul. Pada mode ekonomi, kehilangan Inti Komando juga mengakhiri pertandingan. Layar hasil menyediakan tombol **Play Again**.
 - Posisi, radius, durasi perebutan, dan target skor ada di `game/RTSPC.sdd/gamedata/skenario/bukit.lua`.
 
 ### Medium Tank
@@ -114,7 +112,7 @@ Model markas dan bangunan ekonomi juga berasal dari aset v2. Konverter `tools/im
 
 ### Efek tempur dari V2
 
-Meriam, roket, dan senjata ringan memilih model tracer 3D dan profil asap lewat `customparams.fx_jejak`. `python tools/impor_tracer_v2.py` membangun ulang tiga model tracer. Jejak asap mengikuti posisi proyektil Recoil. Untuk artileri jejak tertinggal sekitar 2,45 detik per gumpalan sambil hanyut.
+Meriam, roket, dan senjata ringan memilih model tracer 3D dan profil asap lewat `customparams.fx_jejak`. `python tools/impor_tracer_v2.py` membangun ulang tiga model tracer. Tracer meriam menyala sepanjang 1,4 m. Jejak meriam biasa mengikuti profil V2 dengan jarak 0,6 m antargumpalan, jeda 0,04 detik, dan umur 0,19 detik. Asap mengikuti posisi proyektil Recoil. Untuk artileri jejak tertinggal sekitar 2,45 detik per gumpalan sambil hanyut.
 
 Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. Asap dan debu satu bidang per partikel menghadap kamera, seperti implementasi V2. Ledakan unit mencakup inti api, bola api dengan buntut asap, percikan, serpihan dan asap bangkai sampai 24 detik. Reklamasi bangkai menghentikan keluaran asap. Efek benturan tanah dan baja yang sudah dibake tetap dipakai dan senjata ringan mendapat percikan serta debu prosedural saat kena tanah.
 
@@ -173,6 +171,12 @@ Ada dua penyeberangan dangkal yang bisa dilintasi unit darat. Typemap membatasi 
 
 Setelah menjalankan `setup.ps1`, jalankan `python tools/buat_lembah_sungai.py` untuk membuat ulang paket `.sdz`. Skrip membentuk heightmap, menyusun warna medan dari tekstur bawaan, lalu memberi PyMapConv peta jenis medan, mask rumput, minimap, dan posisi pohon. Recoil menggambar jejak track ketika kendaraan berjalan di darat dan menempelkan bekas ledakan saat peluru berat mengenai permukaan. Bekas tembakan yang terlihat memudar dalam sekitar dua menit. [Dokumentasi decal Recoil](https://recoilengine.org/docs/guides/rendering/using-decals/)
 
+## Pine Crossing 4v4
+
+Pilih **Pine Crossing** di Skirmish. Peta 512 × 384 m ini memakai tiga penyeberangan dangkal, empat titik perebutan, 36 deposit besi, dan pohon bawaan Recoil. Satu pemain dan tujuh AI terbagi menjadi dua kubu. Skor dibagi per kubu dengan aturan yang sama seperti peta lain (1 poin per detik per titik, target 2.400).
+
+Sumber Blender ada di `../blender-assets/peta/pine-crossing-4v4/pine-crossing-4v4.blend`. Medan memakai grid 1 m dan albedo prosedural orisinal 4096 × 3072. Untuk membuat ulang versi prosedural, jalankan `python tools/buat_pine_crossing.py prepare`, jalankan Blender dengan `-b --python tools/blender_pine_crossing.py -- <folder staging> <folder sumber>`, lalu jalankan `python tools/buat_pine_crossing.py compile`. Folder staging adalah `.cache/lintasan-pinus-4v4` dan folder sumber adalah folder peta Blender di atas.
+
 ## Bukit Tengah 1v1
 
 Peta uji 2.048 ? 2.048 elmo dengan markas barat dan timur, bukit batu terblokir, dan dua koridor. Ada tiga titik besi dekat tiap markas dan dua di tiap koridor. Terrain, tekstur, dan penempatan mineral dibuat prosedural khusus untuk v3.
@@ -191,7 +195,7 @@ python tools/buat_bukit_tengah.py
 
 ### Balance pembukaan dan AI
 
-Setiap pembukaan diuji pada tiga seed dengan Biru dikendalikan skrip dan Merah memakai AI skenario. Semua waktu dihitung dari awal pertandingan. Pembukaan ekonomi paralel memesan Insinyur kedua dari markas dan mulai membangun Pabrik Kendaraan setelah ekstraktor pertama selesai.
+Setiap pembukaan berikut diuji saat target skor masih 1.000 poin, pada tiga seed dengan Biru dikendalikan skrip dan Merah memakai AI skenario. Semua waktu dihitung dari awal pertandingan. Pembukaan ekonomi paralel memesan Insinyur kedua dari markas dan mulai membangun Pabrik Kendaraan setelah ekstraktor pertama selesai.
 
 | Pembukaan Biru | Unit tempur pertama | Titik pertama | Poin Biru pada 2:00 | Skor Biru–Merah per seed |
 | --- | ---: | ---: | ---: | --- |
@@ -210,7 +214,7 @@ Jalankan `python tools/uji_balance.py --seed 1 2 3` di folder proyek. Hasil dan 
 
 ### Uji kontrol dan pembukaan 1×
 
-Uji grafis memakai klik mouse untuk kartu HUD dan perintah medan. Skrip mengatur kamera, seleksi, dan urutan klik. Tiga ronde memakai seed 1 dan rencana yang sama setelah pembukaan. Biru mengirim tiga unit ke A dan C, lalu mempertahankan perintah terakhir sampai pertandingan selesai.
+Uji grafis ini berlangsung saat target skor masih 1.000 poin. Skrip mengatur kamera, seleksi, dan urutan klik untuk kartu HUD serta perintah medan. Tiga ronde memakai seed 1 dan rencana yang sama setelah pembukaan. Biru mengirim tiga unit ke A dan C, lalu mempertahankan perintah terakhir sampai pertandingan selesai.
 
 | Pembukaan Biru | Unit tempur pertama | Titik pertama | Skor 2:00 | Skor akhir Biru–Merah |
 | --- | ---: | ---: | ---: | ---: |

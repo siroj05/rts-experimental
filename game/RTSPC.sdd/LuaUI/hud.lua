@@ -115,13 +115,15 @@ local function panelPos(lebar, tinggi)
     lebarLama, tinggiLama = lebar, tinggi
     local skala = math.min(lebar / 1280, tinggi / 720, 2.5)
     local w, h = lebar / skala, tinggi / skala
+    local petaW = 111 * math.min(1, Game.mapSizeX / Game.mapSizeZ)
+    local petaH = 111 * math.min(1, Game.mapSizeZ / Game.mapSizeX)
     layout = {
         skala = skala,
         kiri = {x = 16, y = 14, w = 244, h = 144},
         tengah = {x = 270, y = 14, w = w - 576, h = 144},
         kanan = {x = w - 296, y = 14, w = 280, h = 144},
         skor = {x = (w - 494) / 2, y = h - 100, w = 494, h = 84},
-        peta = {x = w - 139, y = 26, w = 111, h = 111},
+        peta = {x = w - 139 + (111 - petaW) / 2, y = 26 + (111 - petaH) / 2, w = petaW, h = petaH},
     }
     local m = layout.peta
     gl.ConfigMiniMap(math.floor(m.x * skala), math.floor(m.y * skala),
@@ -173,13 +175,38 @@ function hud.AttackFeedback(params, options)
     end
 end
 
-local function rentangSenjata(def)
+local function batasSenjata(def)
     local jarak, jarakMin = 0, def.name == "artileri_ringan" and minArtileri or 0
     for _, slot in ipairs(def.weapons) do
         local weapon = WeaponDefs[slot.weaponDef]
         jarak = math.max(jarak, weapon.range)
         jarakMin = math.max(jarakMin, tonumber(weapon.customParams.jarak_min) or 0)
     end
+    return jarak, jarakMin
+end
+
+function hud.DrawWeaponRanges()
+    for _, id in ipairs(unitTerpilih) do
+        local defID = sp.GetUnitDefID(id)
+        if defID then
+            local maksimum, minimum = batasSenjata(UnitDefs[defID])
+            if maksimum > 0 then
+                local x, y, z = sp.GetUnitViewPosition(id)
+                if x then
+                    gl.Color(.48, .86, 1, .82)
+                    gl.DrawGroundCircle(x, y, z, maksimum, 128)
+                    if minimum > 0 then
+                        gl.Color(1, .19, .14, .95)
+                        gl.DrawGroundCircle(x, y, z, minimum, 96)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function rentangSenjata(def)
+    local jarak, jarakMin = batasSenjata(def)
     if jarak == 0 then return end
     if jarakMin > 0 then
         return string.format("Range %d–%d m", jarakMin / elmoPerMeter, jarak / elmoPerMeter)
@@ -513,7 +540,7 @@ local function gambarSkor(r, aturan, status, warnaTim)
         local awal = tim == 0 and x + 13 or x + w - 127
         teks(tim == 0 and "BLUE" or "RED", awal + 57, y + 66, 10, c, "c")
         teks(angka(skor), awal + 57, y + 46, 19, warna.putih, "c")
-        bar(awal, y + 38, 114, 3, skor / aturan.targetSkor, c)
+        bar(awal, y + 38, 114, 3, math.min(1, skor / aturan.targetSkor), c)
     end
     local chip = (w - 31 - 3 * 7) / 4
     for i, t in ipairs(aturan.titik) do

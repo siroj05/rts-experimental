@@ -17,7 +17,8 @@ OUTPUT = ROOT / "dist/windows/RTS-PC-v3-win-x64.exe"
 def archive_sources(source, temp, revision):
     snapshot = temp / "snapshot.tar"
     subprocess.run(["git", "archive", f"--output={snapshot}", revision, "game", "maps", "menu", "README.md",
-                    "dependencies.windows.json", "tools/launcher_windows.cs"], cwd=ROOT, check=True)
+                    "config/windows-defaults.cfg", "dependencies.windows.json", "tools/launcher_windows.cs"],
+                   cwd=ROOT, check=True)
     source.mkdir()
     subprocess.run(["tar.exe", "-xf", snapshot, "-C", source], check=True)
 
@@ -47,14 +48,15 @@ def stage_game(source, runtime):
     shutil.copytree(source / "game/RTSPC.sdd", runtime / "games/RTSPC.sdd")
     shutil.copytree(source / "menu/RTSPCMenu.sdd", menu.parent)
     for name in ("skenario/bukit.lua", "skenario/bukit-start.txt", "skenario/sungai.lua",
-                 "skenario/sungai-start.txt", "profil_ai.lua"):
+                 "skenario/sungai-start.txt", "skenario/pinus.lua", "skenario/pinus-start.txt", "profil_ai.lua"):
         shutil.copy2(data / name, menu)
-    for name in ("mapinfo-bukit-tengah.lua", "mapinfo-lembah-sungai.lua"):
+    for name in ("mapinfo-bukit-tengah.lua", "mapinfo-lembah-sungai.lua", "mapinfo-lintasan-pinus-4v4.lua"):
         shutil.copy2(source / "maps" / name, menu)
     (runtime / "maps").mkdir()
     for path in sorted((source / "maps").glob("*.sdz")):
         shutil.copy2(path, runtime / "maps" / path.name)
     shutil.copy2(source / "README.md", runtime)
+    shutil.copy2(source / "config/windows-defaults.cfg", runtime / "springsettings.cfg")
 
 
 def main():

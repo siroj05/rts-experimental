@@ -24,7 +24,9 @@ function gadget:GameStart()
         if ekonomi then
             buat("inti_komando", x, z, facing, team)
             buat("robot_insinyur", x + awal.insinyur[1], z + awal.insinyur[2], facing, team)
-            if skenario.tankAwal then
+            if awal.tank then
+                buat("medium_tank", x + awal.tank[1], z + awal.tank[2], facing, team)
+            elseif skenario.tankAwal then
                 local tanda = i == 1 and 1 or -1
                 buat("medium_tank", x + tanda * skenario.tankAwal[1], z + tanda * skenario.tankAwal[2], facing, team)
             end

@@ -121,16 +121,7 @@ local function recoil()
     Move(barrel, z_axis, 0, 1.8 * rig.skala)
 end
 
-function script.Shot(weapon)
-    local x, y, z = Spring.GetUnitPiecePosDir(unitID, muzzle)
-    local px, py, pz = Spring.GetUnitPiecePosDir(unitID, barrel)
-    if x and px then
-        local dx, dy, dz = x - px, y - py, z - pz
-        local length = math.sqrt(dx * dx + dy * dy + dz * dz)
-        if length > 0 and GG.FxMoncongV2 then
-            GG.FxMoncongV2(unitID, false, x, y, z, dx / length, dy / length, dz / length, weapon)
-        end
-    end
+function script.Shot()
     StartThread(recoil)
 end
 

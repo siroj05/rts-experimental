@@ -1,5 +1,6 @@
 function gadget:GetInfo()
-    return {name = "V2 Combat FX", desc = "Muzzle, tracer trails, destruction and wreck smoke", enabled = true}
+    -- Jalankan sesudah gadget lintasan supaya efek mengikuti arah peluru yang sudah dikoreksi.
+    return {name = "V2 Combat FX", desc = "Muzzle, tracer trails, destruction and wreck smoke", layer = 1, enabled = true}
 end
 
 local sp = Spring
@@ -13,13 +14,18 @@ end
 
 if gadgetHandler:IsSyncedCode() then
     local bangkai = {}
+    local muzzleWeapons = {}
     local deathWeapon = WeaponDefNames.noweapon and WeaponDefNames.noweapon.id
+    local lightCannon = WeaponDefNames.rts_tank_ringan and WeaponDefNames.rts_tank_ringan.id
     function gadget:Initialize()
         if deathWeapon then Script.SetWatchExplosion(deathWeapon, true) end
-        GG.FxMoncongV2 = function(id, kecil, x, y, z, dx, dy, dz, weapon)
-            local def = UnitDefs[sp.GetUnitDefID(id)]
-            local k = (kecil and .32) or (def.name == "tank_ringan" and .65) or 1
-            SendToUnsynced(muzzleEvent, x, y, z, dx, dy, dz, k, id, sp.GetGameFrame(), def.weapons[weapon].weaponDef)
+        for id, def in pairs(WeaponDefs) do
+            local style = def.customParams.fx_jejak
+            if style then
+                local small = style == "kecil" or style == "roket"
+                muzzleWeapons[id] = (small and .32) or (id == lightCannon and .65) or 1
+                Script.SetWatchProjectile(id, true)
+            end
         end
         GG.FxBenturanCadanganV2 = function(x, y, z, projectile, kecil, tanah)
             SendToUnsynced(impactEvent, x, y, z, projectile or -1, kecil, tanah, sp.GetGameFrame())
@@ -27,8 +33,16 @@ if gadgetHandler:IsSyncedCode() then
         end
     end
     function gadget:Shutdown()
-        GG.FxMoncongV2 = nil
         GG.FxBenturanCadanganV2 = nil
+    end
+    function gadget:ProjectileCreated(projectile, owner, weapon)
+        local scale = muzzleWeapons[weapon]
+        if not scale or not owner then return end
+        local x, y, z = sp.GetProjectilePosition(projectile)
+        local vx, vy, vz, speed = sp.GetProjectileVelocity(projectile)
+        if not x or not speed or speed <= 0 then return end
+        SendToUnsynced(muzzleEvent, x, y, z, vx/speed, vy/speed, vz/speed,
+            scale, owner, sp.GetGameFrame(), weapon, projectile)
     end
     function gadget:Explosion(weapon, x, y, z, owner)
         -- NOWEAPON hanya dipakai Recoil untuk kematian unit yang sudah jadi dan tidak direklamasi.
@@ -57,6 +71,8 @@ local clouds, fires, sparks, trails, wrecks = {}, {}, {}, {}, {}
 local cloudShader, fireShader, fireUniform, sphere
 local tau = math.pi * 2
 local elmo, fps = 8, Game.gameSpeed
+local tracerLength = 1.4 * elmo
+local emerging = {}
 local function waktu(frame) return frame / fps end
 local function visible(x, y, z)
     local _, fullView = sp.GetSpectatingState()
@@ -76,13 +92,14 @@ local function add(list, cap, p)
     list[#list + 1] = p
 end
 
-local function cloud(t, life, x, y, z, vx, vy, vz, s, alpha, tone, seed, grow, low, drift)
+local function cloud(t, life, x, y, z, vx, vy, vz, s, alpha, tone, seed, grow, low, drift, easeGrowth)
     add(clouds, 2200, {born=t, life=life, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
-        size=s, alpha=alpha, tone=tone, seed=seed, growth=grow, low=low, drift=drift})
+        size=s, alpha=alpha, tone=tone, seed=seed, growth=grow, low=low, drift=drift, easeGrowth=easeGrowth})
 end
 
-local function fire(t, life, x, y, z, vx, vy, vz, s, kind, seed, drift)
-    add(fires, 256, {born=t, life=life, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz, size=s, kind=kind, seed=seed, drift=drift})
+local function fire(t, life, x, y, z, vx, vy, vz, s, kind, seed, drift, instant)
+    add(fires, 256, {born=t, life=life, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
+        size=s, kind=kind, seed=seed, drift=drift, instant=instant})
 end
 
 local function spark(t, life, x, y, z, vx, vy, vz, s, gravity, hot)
@@ -90,18 +107,23 @@ local function spark(t, life, x, y, z, vx, vy, vz, s, gravity, hot)
 end
 
 -- Counts and motion from V2 FxMeriam.AddShot. Ground dust uses the terrain under the muzzle.
-local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame, weapon)
+local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame, weapon, projectile)
     if not visible(x, y, z) then return end
     local params = WeaponDefs[weapon].customParams
+    if params.fx_jejak == "meriam" or params.fx_jejak == "artileri" then
+        emerging[projectile] = {x=x, y=y, z=z}
+        sp.UnitRendering.SetProjectileLuaDraw(projectile, true)
+    end
     if params.suara_tembak then
         sp.PlaySoundFile(params.suara_tembak, tonumber(params.volume_tembak) or 1, x, y, z, "battle")
     end
     if not cloudShader then return end
+    trails[projectile] = {frame=frame, x=x, y=y, z=z, carry=0, atMuzzle=true}
     local r, t, s = rng(id * 101 + frame * 7919), waktu(frame), k * elmo
     for j = 0, 6 do
         local d = j * .18 * s * 1.25
         fire(t, .10, x + dx*d, y + dy*d, z + dz*d, dx*3*s, dy*3*s, dz*3*s,
-            (.4 + (j > 1 and .3 - j*.045 or 0)) * s * 1.25, 0, r(0, 50), true)
+            (.4 + (j > 1 and .3 - j*.045 or 0)) * s * 1.25, 0, r(0, 50), true, true)
     end
     for _ = 1, 11 do
         local d, lateral = r(0, .65)*s, r(-.36, .36)*s
@@ -195,7 +217,9 @@ end
 local function removeWreck(_, id) wrecks[id] = nil end
 
 local profil = {
-    meriam = {4.8, .23, 1.35, .42}, kecil = {5, .15, .8, .28},
+    -- FxMeriam.CannonTrail di V2. Ukuran, jarak, dan simpangan dikali 8 elmo/m.
+    meriam = {.6*elmo, .19, .14*elmo, .42, setback=.62*elmo, delay=.04},
+    kecil = {5, .15, .8, .28},
     artileri = {4.8, 2.45, 5.6, .64}, roket = {4.4, .64, 1.8, .55},
 }
 
@@ -215,21 +239,30 @@ local function jejak(frame)
             local x, y, z = sp.GetProjectilePosition(id)
             if x and (fullView or sp.IsPosInLos(x, y, z, ally)) then
                 local old = trails[id]
-                if old and old.frame == frame-1 then
+                if old and (old.frame == frame-1 or (old.atMuzzle and old.frame == frame)) then
                     local dx, dy, dz = x-old.x, y-old.y, z-old.z
                     local gap = math.sqrt(dx*dx + dy*dy + dz*dz)
                     if gap > 0 and gap < 160 and #clouds < 1700 then
                         local step = p[1]
+                        local artillery = style == "artileri"
+                        local cannon = style == "meriam"
+                        local randomWind = cannon and rng(id*101 + frame*7919)
                         for d = step - old.carry, gap, step do
-                            local u = d/gap
+                            local u = (d - (p.setback or 0))/gap
+                            if old.atMuzzle then u = math.max(0, u) end
                             local tx, ty, tz = old.x+dx*u, old.y+dy*u, old.z+dz*u
                             if fullView or sp.IsPosInLos(tx, ty, tz, ally) then
-                                cloud(t - (1-u)/fps, p[2], tx, ty, tz,
-                                    style == "artileri" and 6 or 1, 2, 1.4, p[3], p[4],
-                                    style == "artileri" and 2 or 0, (id*.371+d*2.1)%48, 2.5, false, true)
+                                local vx, vz = artillery and 6 or 1, 1.4
+                                if cannon then
+                                    vx, vz = randomWind(-.075, .075)*elmo, randomWind(-.075, .075)*elmo
+                                end
+                                cloud(t - (1-d/gap)/fps + (p.delay or 0), p[2], tx, ty, tz,
+                                    vx, 2, vz, p[3], p[4], artillery and 2 or 0,
+                                    (id*.371+d*2.1)%48, 2.5, false, not cannon, cannon)
                             end
                         end
                         old.carry = (old.carry + gap) % step
+                        old.atMuzzle = false
                     end
                 else
                     old = {carry=0}
@@ -243,6 +276,19 @@ local function jejak(frame)
 end
 
 function gadget:GameFrame(frame)
+    for id, origin in pairs(emerging) do
+        local x,y,z = sp.GetProjectilePosition(id)
+        if not x then
+            emerging[id] = nil
+        else
+            local _,_,_,speed = sp.GetProjectileVelocity(id)
+            local distance = math.sqrt((x-origin.x)^2+(y-origin.y)^2+(z-origin.z)^2)
+            if speed and distance >= tracerLength + speed then
+                sp.UnitRendering.SetProjectileLuaDraw(id, false)
+                emerging[id] = nil
+            end
+        end
+    end
     if not cloudShader then return end
     jejak(frame)
     if frame % 5 ~= 0 then return end
@@ -263,6 +309,21 @@ function gadget:GameFrame(frame)
             end
         end
     end
+end
+
+function gadget:DrawProjectile(id)
+    local origin = emerging[id]
+    if not origin then return false end
+    local x,y,z = sp.GetProjectilePosition(id)
+    local vx,vy,vz,speed = sp.GetProjectileVelocity(id)
+    if not x or not speed or speed <= 0 then return false end
+    -- Recoil interpolates the tip between simulation frames. The model extends
+    -- backwards on local Z, so reveal only the length already outside the bore.
+    local projected = ((x-origin.x)*vx + (y-origin.y)*vy + (z-origin.z)*vz) / speed
+    local length = projected - speed * (1 - sp.GetFrameTimeOffset())
+    if length <= 0 then return true end
+    gl.Scale(1, 1, math.min(1, length / tracerLength))
+    return false
 end
 
 local function buatBola()
@@ -298,6 +359,9 @@ function gadget:Initialize()
 end
 
 function gadget:Shutdown()
+    for id in pairs(emerging) do
+        if sp.GetProjectilePosition(id) then sp.UnitRendering.SetProjectileLuaDraw(id, false) end
+    end
     for _, event in ipairs({muzzleEvent, deathEvent, impactEvent, wreckEvent, removeEvent}) do gadgetHandler:RemoveSyncAction(event) end
     if sphere then gl.DeleteList(sphere) end
     if fireShader then gl.DeleteShader(fireShader) end
@@ -341,7 +405,8 @@ local function drawClouds(list, right, up)
     end
     for _, p in ipairs(list) do
         local u = p.u
-        local w = p.size * .5 * (1 + p.growth*u)
+        local growth = p.easeGrowth and (1-(1-u)^2) or u
+        local w = p.size * .5 * (1 + p.growth*growth)
         local h = p.low and w*.4 or w
         gl.MultiTexCoord(1, p.seed, p.tone, p.alpha*math.min(1,u*11)*(1-u)^1.3)
         corner(p,-w,-h,0,0); corner(p,w,-h,1,0); corner(p,w,h,1,1); corner(p,-w,h,0,1)
@@ -384,8 +449,8 @@ function gadget:DrawWorld()
         gl.Culling(GL.BACK)
         for _, p in ipairs(drawFire) do
             local u = p.u
-            local alpha = math.min(1, u*12+.05) * (1-u)^.75
-            local s = p.size * math.min(1,u*4+.13) * (1-.72*u^2)
+            local alpha = (p.instant and 1 or math.min(1, u*12+.05)) * (1-u)^.75
+            local s = p.size * (p.instant and 1 or math.min(1,u*4+.13)) * (1-.72*u^2)
             gl.Uniform(fireUniform, alpha, p.kind, p.seed)
             gl.PushMatrix()
             gl.Translate(p.drawX,p.drawY,p.drawZ)
