@@ -414,6 +414,7 @@ function M.baru(c)
     end
 
     function o.Ingatan() return ingat, bangunan end
+    function o.BobotDendam(t) return bobotDendam(t) end
 
     -- Bela markas hanya kalau penyerang berbobot (bukan pengintai lewat).
     function o.BelaBerbobot(bela, frame)

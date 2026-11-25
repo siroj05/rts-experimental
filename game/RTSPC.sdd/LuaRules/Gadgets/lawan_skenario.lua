@@ -75,6 +75,8 @@ local function buatPengendali(tim, rencana)
     local tingkat = profil[opsi["tingkat_ai_" .. tim]] or tingkat
     -- Otak brutal: gaya main per peta (belajar antarronde) mengubah salinan profil sebelum rencana bangun disusun.
     local gayaNama
+    local hancur = aturan.mode == "hancur"
+    if not tingkat.otak and hancur then gayaNama = "seimbang" end -- Deathmatch: semua tingkat memakai otak + garis
     if tingkat.otak == "brutal" then
         gayaNama = Otak.pilihGaya(tim, opsi)
         local salinan = {}
@@ -110,8 +112,9 @@ local function buatPengendali(tim, rencana)
     local otak = gayaNama and Otak.baru({tim = tim, tingkat = tingkat, gaya = gayaNama, aturan = aturan, tempur = tempur,
         tempurSet = tempurSet, berat = berat, artileri = artileri, lontar = lontar, hq = hq, insinyur = insinyur,
         ekstraktor = ekstraktor, pompa = pompa, pabrik = pabrik, pabrikRobot = pabrikRobot})
-    local garis = otak and tingkat.garisDepan and GarisDepan.baru({tim = tim, tingkat = tingkat, aturan = aturan,
-        otak = otak, tempurSet = tempurSet, pengintai = pengintai, artileri = artileri, lontar = lontar})
+    local garis = otak and (tingkat.garisDepan or hancur) and GarisDepan.baru({tim = tim, tingkat = tingkat,
+        aturan = aturan, otak = otak, tempurSet = tempurSet, pengintai = pengintai, artileri = artileri, lontar = lontar,
+        hq = hq, pabrik = pabrik, pabrikRobot = pabrikRobot, ekstraktor = ekstraktor, pompa = pompa})
 
     local function GameStart()
         local _, _, _, timAI = sp.GetTeamInfo(tim, false)

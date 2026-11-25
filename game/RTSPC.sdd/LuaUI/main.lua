@@ -37,6 +37,7 @@ local function mulaiUlang()
     if opsi.kembali_menu == "1" then
         start = start:gsub("ekonomi=1;", "ekonomi=1;kembali_menu=1;")
     end
+    if opsi.mode == "hancur" then start = start:gsub("ekonomi=1;", "ekonomi=1;mode=hancur;") end
     if not ekonomi then start = start:gsub("ekonomi=1;", "") end
     Spring.Reload(start)
 end

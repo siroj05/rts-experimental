@@ -1,11 +1,21 @@
 -- Pasangkan skenario dengan peta yang sesuai supaya koordinatnya tidak terbawa.
-if Spring.GetModOptions().skenario == "bukit" and Game.mapName == "Central Hill 1v1 1.0" then
-    return VFS.Include("gamedata/skenario/bukit.lua")
+local opsi = Spring.GetModOptions()
+local berkas = {
+    bukit = {"Central Hill 1v1 1.0", "gamedata/skenario/bukit.lua"},
+    sungai = {"River Valley 1v1 1.0", "gamedata/skenario/sungai.lua"},
+    pinus = {"Pine Crossing 4v4 1.0", "gamedata/skenario/pinus.lua"},
+    hijau = {"Verdant Ridge 4v4 1.0", "gamedata/skenario/hijau.lua"},
+}
+local pilihan = berkas[opsi.skenario]
+if not pilihan or Game.mapName ~= pilihan[1] then return nil end
+local aturan = VFS.Include(pilihan[2])
+-- Mode Deathmatch (✅ user 2026-11-25: "gua pengen ada dua mode nanti, rebut point sama saling menghancurkan";
+-- "pindah ke mode deathmatch"): modoption mode=hancur. Titik dikosongkan sehingga tidak ada skor; pertandingan
+-- berakhir saat semua markas satu kubu hancur (LuaRules/Gadgets/perebutan_titik.lua). Daftar titik asli disimpan di
+-- `titikAsli` untuk keperluan lain (mis. AI).
+if aturan and opsi.mode == "hancur" then
+    aturan.mode = "hancur"
+    aturan.titikAsli = aturan.titik
+    aturan.titik = {}
 end
-if Spring.GetModOptions().skenario == "sungai" and Game.mapName == "River Valley 1v1 1.0" then
-    return VFS.Include("gamedata/skenario/sungai.lua")
-end
-if Spring.GetModOptions().skenario == "pinus" and Game.mapName == "Pine Crossing 4v4 1.0" then
-    return VFS.Include("gamedata/skenario/pinus.lua")
-end
-if Spring.GetModOptions().skenario == "hijau" and Game.mapName == "Verdant Ridge 4v4 1.0" then return VFS.Include("gamedata/skenario/hijau.lua") end
+return aturan

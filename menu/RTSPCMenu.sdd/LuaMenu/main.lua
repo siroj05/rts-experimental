@@ -23,6 +23,11 @@ end
 local levels = {"easy", "normal", "hard", "brutal"}
 local setting = "RTSPCSkirmishDifficulty"
 local mapSetting = "RTSPCSkirmishMap"
+-- Mode pertandingan (✅ user 2026-11-25): Control Points atau Deathmatch (modoption mode=hancur).
+local modeSetting = "RTSPCSkirmishMode"
+local modes = {{key = "titik", name = "Control Points"}, {key = "hancur", name = "Deathmatch"}}
+local modeTabs = {{x = 819, y = 500, w = 160, h = 30}, {x = 985, y = 500, w = 160, h = 30}}
+local selectedMode = 1
 local ink = {0.17, 0.18, 0.15, 1}
 local mutedInk = {0.35, 0.34, 0.27, 1}
 local background = {0.095, 0.102, 0.09, 1}
@@ -138,7 +143,9 @@ local function terrain(entry)
         local x, y = coord(entry, deposit[1], deposit[2])
         diamond(x, y, 3.5, mine)
     end
-    for _, point in ipairs(map.titik) do
+    -- Deathmatch: titik tidak dipakai, jadi tidak digambar.
+    local deathmatch = modes[selectedMode].key == "hancur"
+    for _, point in ipairs(deathmatch and {} or map.titik) do
         local x, y = coord(entry, point.x, point.z)
         local r = map.radius * plot.w / entry.size
         gl.Color({ink[1], ink[2], ink[3], 0.60})
@@ -181,9 +188,11 @@ local function terrain(entry)
     letter((entry.size / 32) .. " m", 78 + scale, 109, 11, ink)
     diamond(563, 109, 3.5, mine)
     letter("Iron", 574, 104, 14, ink)
-    rect(631, 102, 13, 14, ink)
-    title("A", 637.5, 104, 12, bone, "c")
-    letter("Control point", 653, 104, 14, ink)
+    if not deathmatch then
+        rect(631, 102, 13, 14, ink)
+        title("A", 637.5, 104, 12, bone, "c")
+        letter("Control point", 653, 104, 14, ink)
+    end
 end
 
 local function startMatch()
@@ -231,6 +240,9 @@ function ActivateMenu()
     sp.SetWMCaption("RTS PC | Skirmish")
     local previous = sp.GetConfigString(setting, "normal")
     for i, key in ipairs(levels) do if key == previous then selected = i end end
+    local lastMode = sp.GetConfigString(modeSetting, "titik")
+    selectedMode = 1
+    for i, m in ipairs(modes) do if m.key == lastMode then selectedMode = i end end
     local lastMap = sp.GetConfigString(mapSetting, maps[1].key)
     selectedMap = 1
     for i, entry in ipairs(maps) do if entry.key == lastMap then selectedMap = i end end
@@ -250,10 +262,12 @@ function Update()
     if not onMenu or not pending then return end
     local key = levels[selected]
     local entry = maps[selectedMap]
-    local script, found = entry.start:gsub("ekonomi=1;", "ekonomi=1;tingkat_ai=" .. key .. ";kembali_menu=1;")
+    local extra = modes[selectedMode].key == "hancur" and "mode=hancur;" or ""
+    local script, found = entry.start:gsub("ekonomi=1;", "ekonomi=1;tingkat_ai=" .. key .. ";kembali_menu=1;" .. extra)
     assert(found == 1, "Skirmish start script is missing its economy setting")
     sp.SetConfigString(setting, key)
     sp.SetConfigString(mapSetting, entry.key)
+    sp.SetConfigString(modeSetting, modes[selectedMode].key)
     onMenu, pending = false, false
     sp.Reload(script)
 end
@@ -279,11 +293,23 @@ function DrawScreen()
     terrain(entry)
     title(entry.name:upper(), 818, 541, 63, bone)
     local sisi = #entry.scenario.awal / 2
-    letter(("Control Points  /  %d vs %d"):format(sisi, sisi), 821, 510, 20, subdued)
+    for i, r in ipairs(modeTabs) do
+        local current, hover = i == selectedMode, inside(mx, my, r)
+        local fill = current and {0.25, 0.24, 0.18, 1} or hover and {0.16, 0.18, 0.14, 1}
+        if fill then rect(r.x, r.y, r.w, r.h, fill) end
+        rect(r.x, r.y, r.w, 1, current and orange or line)
+        letter(modes[i].name, r.x + r.w * .5, r.y + 9, 16, current and bone or subdued, "c")
+    end
+    letter(("%d vs %d"):format(sisi, sisi), 1230, 509, 18, subdued, "r")
     rect(819, 493, 413, 1, line)
-    letter(("Reach %s points or destroy"):format(scoreText(entry.scenario.targetSkor)),
-        821, 469, 19, bone)
-    letter(sisi > 1 and "all enemy Command Cores." or "the enemy Command Core.", 821, 446, 19, bone)
+    if modes[selectedMode].key == "hancur" then
+        letter("Destroy every enemy Command Core.", 821, 469, 19, bone)
+        letter("No control points, no score limit.", 821, 446, 19, subdued)
+    else
+        letter(("Reach %s points or destroy"):format(scoreText(entry.scenario.targetSkor)),
+            821, 469, 19, bone)
+        letter(sisi > 1 and "all enemy Command Cores." or "the enemy Command Core.", 821, 446, 19, bone)
+    end
     letter("AI DIFFICULTY", 821, 423, 14, subdued)
     for i, r in ipairs(rows) do
         local profile = profiles[levels[i]]
@@ -322,6 +348,7 @@ local function actionAt(x, y)
         return "dismiss-map"
     end
     for i, r in ipairs(rows) do if inside(x, y, r) then return i end end
+    for i, r in ipairs(modeTabs) do if inside(x, y, r) then return "mode" .. i end end
     if inside(x, y, deploy) then return "start" end
     if inside(x, y, exit) then return "exit" end
 end
@@ -346,6 +373,7 @@ function MouseRelease(x, y, button)
     elseif action == "start" then startMatch()
     elseif action == "exit" then sp.Quit()
     elseif type(action) == "number" then selected = action
+    elseif action:sub(1, 4) == "mode" then selectedMode = tonumber(action:sub(5))
     else
         for i, entry in ipairs(maps) do if entry.key == action then selectedMap = i end end
         mapFocus = nil

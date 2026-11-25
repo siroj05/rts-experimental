@@ -64,6 +64,13 @@ Lihat `docs/tahapan.md`.
 **Sebelum berhenti (termasuk saat limit hampir habis):** tulis catatan di bagian 7 (paling atas): tanggal, agen, selesai, setengah jalan (file mana, langkah berikut persisnya), hasil uji, yang menunggu keputusan user. Commit hanya kalau user minta, dan hanya file milikmu.
 
 ## 7. Catatan sesi (terbaru di atas)
+### 2026-11-25 (lanjutan), Claude: mode Deathmatch
+- Mode titik ditutup (keputusan user). Deathmatch: `gamedata/skenario.lua` (mode=hancur -> titik kosong, `titikAsli`), `perebutan_titik.lua` (GameRulesParam `mode_hancur`, `markas_hidup_<ally>`, `markas_awal_<ally>`), `LuaUI/hud.lua` (panel DEATHMATCH, hasil), `LuaUI/main.lua` (Play Again membawa mode), menu (tab mode, pratinjau tanpa titik).
+- AI: di Deathmatch semua tingkat memakai otak + `garis_depan.lua` (`sasaranBangunan`, `urusPerampok`). Bangunan bersenjata masuk peta panas. Regu dekat bangunan yang dikenal -> CMD.ATTACK; tujuan di depan bangunan; titik tunggu hanya di sel `lewat`.
+- Alat baru `tools/uji_menu.py` (screenshot menu lewat gl.SaveImage; LuaMenu tidak punya SendCommands).
+- Hasil Brutal vs Normal Deathmatch (bukit+sungai, dua sisi, seed 4–6): 7–3–2.
+- Langkah berikut: uji Easy/Hard dan 4v4 Verdant Ridge di Deathmatch.
+
 ### 2026-11-25, Claude: AI Brutal garis depan (gaya C.R.A.I.G)
 - Riset: C.R.A.I.G (AI Lua Spring:1944, GPL v2) dibaca sebagai referensi lalu ditulis ulang di `LuaRules/ai/garis_depan.lua`: grid 256 elmo, peta panas daya tembak, wilayah/garis depan, perebut terpisah (berpasangan, maks 2 per titik), regu menuju titik (komitmen +0,6), MOVE saat < 450 elmo dari titik, barisan ±60 di titik. Takut di titik mati (profil `takutTitik` untuk menghidupkan).
 - Perbaikan semua tingkat: unit yang tertahan dekat pabrik dulu tidak pernah dilepas (sampai 29/48); sekarang dianggap keluar 20 detik setelah selesai (`lahir`).

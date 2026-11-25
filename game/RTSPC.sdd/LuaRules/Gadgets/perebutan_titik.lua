@@ -42,6 +42,8 @@ function gadget:GameStart()
     Spring.SetGameRulesParam("titik_skor_0", 0)
     Spring.SetGameRulesParam("titik_skor_1", 0)
     Spring.SetGameRulesParam("titik_pemenang", -1)
+    Spring.SetGameRulesParam("mode_hancur", aturan.mode == "hancur" and 1 or 0)
+    for ally = 0, 1 do Spring.SetGameRulesParam("markas_awal_" .. ally, #kubu[ally]) end
 end
 
 local function periksa(t)
@@ -95,6 +97,12 @@ end
 function gadget:GameFrame(frame)
     if selesai or frame == 0 or frame % langkah ~= 0 then return end
     if pakaiMarkas then
+        -- Jumlah markas hidup per kubu untuk HUD (dipakai terutama di mode Deathmatch).
+        for ally = 0, 1 do
+            local n = 0
+            for _, team in ipairs(kubu[ally]) do n = n + Spring.GetTeamUnitDefCount(team, markas) end
+            Spring.SetGameRulesParam("markas_hidup_" .. ally, n)
+        end
         local baratHancur = habis(0, markas)
         local timurHancur = habis(1, markas)
         if baratHancur or timurHancur then

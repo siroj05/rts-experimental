@@ -526,8 +526,28 @@ local function gambarKanan(r)
     kotak(m.x, m.y, m.w, m.h, warna.gelap)
 end
 
+-- Deathmatch (mode_hancur): jumlah Command Core tersisa per kubu, tanpa titik dan skor.
+local function gambarDeathmatch(r, warnaTim)
+    local x, y, w = r.x, r.y, r.w
+    local tengah = x + w * .5
+    local detik = math.floor(sp.GetGameFrame() / Game.gameSpeed)
+    teks("DEATHMATCH", tengah, y + 62, 12, warna.putih, "c")
+    teks(string.format("%02d:%02d", math.floor(detik / 60), detik % 60), tengah, y + 46, 11, warna.redup, "c")
+    for tim = 0, 1 do
+        local c = warnaTim[tim]
+        local hidup = sp.GetGameRulesParam("markas_hidup_" .. tim) or 0
+        local awal = math.max(1, sp.GetGameRulesParam("markas_awal_" .. tim) or 1)
+        local kiri = tim == 0 and x + 13 or x + w - 127
+        teks(tim == 0 and "BLUE" or "RED", kiri + 57, y + 66, 10, c, "c")
+        teks(string.format("%d / %d", hidup, awal), kiri + 57, y + 46, 19, warna.putih, "c")
+        bar(kiri, y + 38, 114, 3, hidup / awal, c)
+    end
+    teks("Destroy every enemy Command Core", tengah, y + 15, 11, warna.redup, "c")
+end
+
 local function gambarSkor(r, aturan, status, warnaTim)
     panel(r)
+    if sp.GetGameRulesParam("mode_hancur") == 1 then return gambarDeathmatch(r, warnaTim) end
     local x, y, w = r.x, r.y, r.w
     local tengah = x + w * .5
     local detik = math.floor(sp.GetGameFrame() / Game.gameSpeed)
@@ -564,7 +584,13 @@ local function gambarHasil(hasil, warnaTim, w, h)
     local a = sp.GetGameRulesParam("titik_skor_0") or 0
     local b = sp.GetGameRulesParam("titik_skor_1") or 0
     teks(caption, x + 180, y + 105, 26, warnaTim[hasil] or warna.putih, "c")
-    teks("Blue  " .. angka(a) .. "   /   " .. angka(b) .. "  Red", x + 180, y + 77, 15, warna.redup, "c")
+    if sp.GetGameRulesParam("mode_hancur") == 1 then
+        a = sp.GetGameRulesParam("markas_hidup_0") or 0
+        b = sp.GetGameRulesParam("markas_hidup_1") or 0
+        teks("Command Cores left  Blue " .. a .. "  /  " .. b .. " Red", x + 180, y + 77, 15, warna.redup, "c")
+    else
+        teks("Blue  " .. angka(a) .. "   /   " .. angka(b) .. "  Red", x + 180, y + 77, 15, warna.redup, "c")
+    end
     if mulaiUlang then
         local bx = kembaliMenu and x + 23 or x + 111
         sudut(bx, y + 22, 138, 34, 4, warna.teal)

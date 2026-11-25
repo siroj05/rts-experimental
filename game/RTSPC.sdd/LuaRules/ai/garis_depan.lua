@@ -23,6 +23,8 @@ function M.baru(c)
     local perebut, tujuanRebut = {}, {}
     local tujuanUnit = {}
     local sekutu, bx, bz
+    local hancur = c.aturan.mode == "hancur"
+    local markasMusuh = {} -- Deathmatch: posisi awal markas musuh {x, z, t, hilang}
     local o = {}
 
     local function idx(i, j) return j * nx + i end
@@ -54,6 +56,12 @@ function M.baru(c)
 
     function o.Mulai(s, x, z)
         sekutu, bx, bz = s, x, z
+        for _, t in ipairs(sp.GetTeamList()) do
+            if t ~= sp.GetGaiaTeamID() and not sp.AreTeamsAllied(t, c.tim) then
+                local ex, _, ez = sp.GetTeamStartPosition(t)
+                if ex and ex >= 0 then markasMusuh[#markasMusuh + 1] = {x = ex, z = ez, t = t} end
+            end
+        end
     end
 
     local function siapkanGrid()
@@ -97,7 +105,22 @@ function M.baru(c)
                 sebar(pengaruhMusuh, m.x, m.z, m.n, r)
             end
         end
-        for _, b in pairs(bangunan) do sebar(pengaruhMusuh, b.x, b.z, 300, 520) end
+        for _, b in pairs(bangunan) do
+            sebar(pengaruhMusuh, b.x, b.z, 300, 520)
+            -- Bangunan bersenjata (menara pertahanan) ikut peta panas: regu kecil tidak bunuh diri ke pangkalan.
+            local ud = UnitDefs[b.def]
+            if ud.weapons and #ud.weapons > 0 then sebar(panasMusuh, b.x, b.z, ud.metalCost * 3, jangkau(b.def)) end
+        end
+        -- Markas awal musuh dicoret kalau posisinya terlihat dan tidak ada markas di ingatan dekat situ.
+        for _, m in ipairs(markasMusuh) do
+            if not m.hilang and sp.IsPosInLos(m.x, sp.GetGroundHeight(m.x, m.z), m.z, sekutu) then
+                local ada = false
+                for _, b in pairs(bangunan) do
+                    if b.def == c.hq and (b.x - m.x)^2 + (b.z - m.z)^2 < 400^2 then ada = true end
+                end
+                if not ada then m.hilang = true end
+            end
+        end
         for _, t in ipairs(c.aturan.titik) do
             local p = pemilikTitik(t)
             if p == sekutu then sebar(pengaruhKita, t.x, t.z, 600, 420)
@@ -192,7 +215,7 @@ function M.baru(c)
                 -- Komitmen: sasaran yang sedang dituju +0,6 (dulu regu berbalik tiap titik berganti pemilik dan tidak
                 -- pernah sampai: regu 29 unit menuju D lalu semenit kemudian ke B, 7 sel jauhnya).
                 local kunciTitik = string.format("%d:%d", ti, tj)
-                local s = w * 1500 / (d + 1500) - (dituju[i] or 0) * .35 + (kunciTitik == lamaKunci and .6 or 0)
+                local s = w * 1500 / (d + 1500) - (dituju[i] or 0) * .1 + (kunciTitik == lamaKunci and .6 or 0)
                 if not skor or s > skor then terbaik, skor = i, s end
             end
         end
@@ -217,14 +240,107 @@ function M.baru(c)
         if c.tingkat.takutTitik and not aman(t.x, t.z) then
             for _, n in ipairs({2, 3, 4}) do
                 local sx, sz = t.x - ni * n * S, t.z - nj * n * S
-                if aman(sx, sz) then return sx, sz, ni, nj, kunciPilih end
+                if lewat[idx(sel(sx, sz))] and aman(sx, sz) then return sx, sz, ni, nj, kunciPilih end
             end
-            return t.x - ni * 5 * S, t.z - nj * 5 * S, ni, nj, kunciPilih
+            for n = 5, 9 do
+                local sx, sz = t.x - ni * n * S, t.z - nj * n * S
+                if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, kunciPilih end
+            end
+            return x, z, ni, nj, kunciPilih
         end
         return t.x, t.z, ni, nj, kunciPilih
     end
 
     -- Perebut: titik bukan milik kita terdekat yang belum dituju perebut lain (netral lebih dekat dihitung).
+    -- Deathmatch: sasaran regu dari bangunan musuh yang diingat dan posisi awal markas musuh. Bobot markas 1,4
+    -- (2,2 saat mode tekan; markas habis = menang), pabrik 1,2, ekstraktor/pompa 1,0, lainnya 0,7, dikali dendam ke
+    -- pemiliknya. Komitmen +0,6. Takut aktif: sasaran terlalu panas -> tunggu 2–4 sel sebelum sasaran.
+    local function sasaranBangunan(x, z, kuat, dituju, lamaKunci)
+        local _, bangunan = c.otak.Ingatan()
+        local tekan = c.otak.Mode() == "tekan"
+        local calon = {}
+        for u, b in pairs(bangunan) do
+            local w = b.def == c.hq and (tekan and 2.2 or 1.4)
+                or ((b.def == c.pabrik or b.def == c.pabrikRobot) and 1.2)
+                or ((b.def == c.ekstraktor or b.def == c.pompa) and 1.0) or .7
+            calon[#calon + 1] = {x = b.x, z = b.z, w = w * c.otak.BobotDendam(b.t), unit = u}
+        end
+        for _, m in ipairs(markasMusuh) do
+            if not m.hilang then
+                local sudah = false
+                for _, k in ipairs(calon) do if (k.x - m.x)^2 + (k.z - m.z)^2 < 400^2 then sudah = true end end
+                if not sudah then
+                    calon[#calon + 1] = {x = m.x, z = m.z, w = (tekan and 2.2 or 1.4) * c.otak.BobotDendam(m.t)}
+                end
+            end
+        end
+        local terbaik, skor
+        for _, k in ipairs(calon) do
+            k.kunci = string.format("%d:%d", sel(k.x, k.z))
+            local d = math.sqrt((k.x - x)^2 + (k.z - z)^2)
+            local s = k.w * 1500 / (d + 1500) - (dituju[k.kunci] or 0) * .1 + (k.kunci == lamaKunci and .6 or 0)
+            if not skor or s > skor then terbaik, skor = k, s end
+        end
+        if not terbaik then return nil end
+        dituju[terbaik.kunci] = (dituju[terbaik.kunci] or 0) + 1
+        local dx, dz = terbaik.x - x, terbaik.z - z
+        local p = math.max(1, math.sqrt(dx * dx + dz * dz))
+        local ni, nj = dx / p, dz / p
+        local ambang = c.otak.Ambang()
+        local function aman(px, pz)
+            if tekan then return true end
+            local k = idx(sel(px, pz))
+            return (panasMusuh[k] or 0) <= ambang * (kuat + (panasKita[k] or 0))
+        end
+        if not aman(terbaik.x, terbaik.z) then
+            for _, n in ipairs({2, 3, 4}) do
+                local sx, sz = terbaik.x - ni * n * S, terbaik.z - nj * n * S
+                if lewat[idx(sel(sx, sz))] and aman(sx, sz) then return sx, sz, ni, nj, terbaik.kunci end
+            end
+            for n = 5, 9 do
+                local sx, sz = terbaik.x - ni * n * S, terbaik.z - nj * n * S
+                if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, terbaik.kunci end
+            end
+            return x, z, ni, nj, terbaik.kunci -- tidak ada sel tunggu yang bisa dilalui: tetap di tempat
+        end
+        -- Bangunan yang diketahui ID-nya diserang langsung (CMD.ATTACK) saat regu dekat; titik tujuan di depan bangunan
+        -- (bukan di tengah tapaknya yang tidak bisa dicapai: dulu 50 unit nyangkut 500 elmo dari markas musuh).
+        local depan = math.min(p, 160)
+        return terbaik.x - ni * depan, terbaik.z - nj * depan, ni, nj, terbaik.kunci, terbaik.unit
+    end
+
+    -- Deathmatch: perebut menjadi perampok. Sasaran: ekstraktor/pompa musuh yang diingat dengan panas musuh rendah
+    -- (paling banyak 2 perampok per sasaran); kalau tidak ada, mengintai posisi markas musuh yang belum terlihat.
+    local function urusPerampok(unit)
+        local x, _, z = sp.GetUnitPosition(unit)
+        local _, bangunan = c.otak.Ingatan()
+        local terbaik, d0
+        for u, b in pairs(bangunan) do
+            if (b.def == c.ekstraktor or b.def == c.pompa) and (tujuanRebut[u] or 0) < 2 then
+                local k = idx(sel(b.x, b.z))
+                if (panasMusuh[k] or 0) < 300 then
+                    local d = (b.x - x)^2 + (b.z - z)^2
+                    if not d0 or d < d0 then terbaik, d0 = u, d end
+                end
+            end
+        end
+        local tx, tz, kunci
+        if terbaik then
+            tujuanRebut[terbaik] = (tujuanRebut[terbaik] or 0) + 1
+            tx, tz, kunci = bangunan[terbaik].x, bangunan[terbaik].z, "p" .. terbaik
+        else
+            for i, m in ipairs(markasMusuh) do
+                if not m.hilang and not tx then tx, tz, kunci = m.x, m.z, "i" .. i end
+            end
+        end
+        if not tx then return end
+        local lama = tujuanUnit[unit]
+        if not lama or lama.k ~= kunci or sp.GetUnitCommandCount(unit) == 0 then
+            sp.GiveOrderToUnit(unit, CMD.FIGHT, {tx, sp.GetGroundHeight(tx, tz), tz}, 0)
+            tujuanUnit[unit] = {k = kunci}
+        end
+    end
+
     local function urusPerebut(unit)
         local x, _, z = sp.GetUnitPosition(unit)
         local terbaik, jarak0
@@ -274,7 +390,9 @@ function M.baru(c)
                 perebut[u] = true
                 jumlahPerebut = jumlahPerebut + 1
             end
-            if perebut[u] then urusPerebut(u) else tempur[#tempur + 1] = u end
+            if perebut[u] then
+                if hancur then urusPerampok(u) else urusPerebut(u) end
+            else tempur[#tempur + 1] = u end
         end
 
         -- Regu: unit yang menuju sasaran sama (kunci sel) dihitung bersama; unit baru membentuk regu sendiri.
@@ -293,11 +411,15 @@ function M.baru(c)
                 x, z, kuat = x + ux * n, z + uz * n, kuat + n
             end
             x, z = x / kuat, z / kuat
-            local tx, tz, ni, nj, kunciT
+            local tx, tz, ni, nj, kunciT, sasaranUnit
             if bela and (bela.x - x)^2 + (bela.z - z)^2 < 1500^2 then
                 tx, tz, ni, nj = bela.x, bela.z, 0, 0
             else
-                tx, tz, ni, nj, kunciT = sasaranTitik(x, z, kuat, dituju, kunciRegu)
+                if hancur then
+                    tx, tz, ni, nj, kunciT, sasaranUnit = sasaranBangunan(x, z, kuat, dituju, kunciRegu)
+                else
+                    tx, tz, ni, nj, kunciT = sasaranTitik(x, z, kuat, dituju, kunciRegu)
+                end
                 if not tx then tx, tz, ni, nj = sasaranRegu(x, z, kuat) end
             end
             if tx then
@@ -323,8 +445,14 @@ function M.baru(c)
                     local px, _, pz = sp.GetUnitPosition(u)
                     local masuk = diTitik and sp.GetUnitDefID(u) ~= c.artileri and (px - tx)^2 + (pz - tz)^2 < 450^2
                     local cmd = masuk and CMD.MOVE or CMD.FIGHT
+                    local serang = sasaranUnit and sp.ValidUnitID(sasaranUnit) and (px - tx)^2 + (pz - tz)^2 < 900^2
+                    if serang then cmd = CMD.ATTACK end
                     if not lama or lama.k ~= kunci or lama.cmd ~= cmd or sp.GetUnitCommandCount(u) == 0 then
-                        sp.GiveOrderToUnit(u, cmd, {ux, sp.GetGroundHeight(ux, uz), uz}, 0)
+                        if serang then
+                            sp.GiveOrderToUnit(u, CMD.ATTACK, {sasaranUnit}, 0)
+                        else
+                            sp.GiveOrderToUnit(u, cmd, {ux, sp.GetGroundHeight(ux, uz), uz}, 0)
+                        end
                         tujuanUnit[u] = {k = kunci, cmd = cmd}
                     end
                 end
@@ -336,7 +464,7 @@ function M.baru(c)
             for _, u in ipairs(anggota) do
                 local ux, _, uz = sp.GetUnitPosition(u)
                 cx, cz = cx + ux / #anggota, cz + uz / #anggota
-                local dekat
+                local dekat = math.huge -- Deathmatch: tidak ada titik
                 for _, t in ipairs(c.aturan.titik) do
                     local d = (ux - t.x)^2 + (uz - t.z)^2
                     if not dekat or d < dekat then dekat = d end

@@ -62,6 +62,8 @@ Angka AI ada di `game/RTSPC.sdd/gamedata/profil_ai.lua`: Easy, Normal, dan Hard 
 
 Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
 
+**Mode pertandingan.** Menu skirmish punya dua tab: **Control Points** (kuasai titik A–D sampai skor target, atau hancurkan semua Command Core musuh) dan **Deathmatch** (tanpa titik dan skor; menang dengan menghancurkan semua Command Core musuh). Deathmatch memakai modoption `mode=hancur`. Panel atas menampilkan jumlah Command Core tersisa per kubu. Tingkat AI keempat, **Brutal**, membaca skor dan kekuatan, mengingat musuh yang menyerangnya, mundur untuk diperbaiki, dan belajar dari efektivitas unitnya.
+
 Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang pratinjau kedua peta dari relief. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
 
 ### Pengaturan dan tampilan
