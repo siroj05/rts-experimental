@@ -426,9 +426,39 @@ function M.baru(c)
                 end
                 if not tx then tx, tz, ni, nj = sasaranRegu(x, z, kuat) end
             end
+            -- Deathmatch: kontak dengan tentara musuh -> tahan di jarak tembak (±85% jangkauan terpendek regu) dan bentuk
+            -- barisan menghadap musuh, kecuali regu jauh lebih kuat (> 2x panas musuh di sana). Bangunan baru diserang
+            -- langsung setelah tidak ada tentara musuh di dekat regu.
+            local tahan
+            if hancur and tx and (sp.GetModOptions().ai_tahan or "1") ~= "0" then
+                local ingat = c.otak.Ingatan()
+                local e, de
+                for _, m in pairs(ingat) do
+                    if frame - m.f < 5 * Game.gameSpeed then
+                        local d = (m.x - x)^2 + (m.z - z)^2
+                        if not de or d < de then e, de = m, d end
+                    end
+                end
+                local jangkau = math.huge
+                for _, u in ipairs(anggota) do
+                    local def = sp.GetUnitDefID(u)
+                    if def ~= c.artileri then jangkau = math.min(jangkau, UnitDefs[def].maxWeaponRange or 300) end
+                end
+                if jangkau == math.huge then jangkau = 300 end
+                if e and de < (jangkau + 350)^2 then
+                    sasaranUnit = nil
+                    if kuat < 2 * (panasMusuh[idx(sel(e.x, e.z))] or 0) then
+                        local dx, dz = x - e.x, z - e.z
+                        local p = math.max(1, math.sqrt(dx * dx + dz * dz))
+                        local r = jangkau * .85
+                        tx, tz, ni, nj = e.x + dx / p * r, e.z + dz / p * r, -dx / p, -dz / p
+                        tahan = string.format("tahan%d:%d", math.floor(tx / S), math.floor(tz / S))
+                    end
+                end
+            end
             if tx then
                 -- Kunci regu = sel titik tujuan (juga saat menunggu di titik tunggu), supaya komitmen tidak hilang.
-                local kunci = kunciT or string.format("%d:%d", math.floor(tx / S), math.floor(tz / S))
+                local kunci = tahan or kunciT or string.format("%d:%d", math.floor(tx / S), math.floor(tz / S))
                 -- Barisan melebar tegak lurus normal (±150 elmo), artileri di belakang sejauh jarak minimum.
                 local tgx, tgz = -nj, ni
                 for n, u in ipairs(anggota) do

@@ -721,7 +721,14 @@ local function buatPengendali(tim, rencana)
     end
 
     local function UnitFinished(unit, def, pemilik)
-        if pemilik == tim then lahir[unit] = sp.GetGameFrame() end
+        if pemilik == tim then
+            lahir[unit] = sp.GetGameFrame()
+            -- Unit tempur AI memakai Hold Position: Fight berhenti dan menembak di jangkauan, tidak mengejar sampai
+            -- hadap-hadapan. Uji 2026-11-25 (Bukit, Brutal vs Normal): median jarak ke musuh menit 8-9 dari 54-70 jadi
+            -- 207-216 elmo. Modoption ai_gerak=1 mengembalikan bawaan Recoil (Maneuver) untuk A/B.
+            local mg = tonumber(opsi.ai_gerak or "0")
+            if mg and tempurSet[def] then sp.GiveOrderToUnit(unit, CMD.MOVE_STATE, {mg}, 0) end
+        end
         if pemilik == tim and (def == pabrik or def == pabrikRobot) then
             pernahPunyaPabrik[def] = true
         end
