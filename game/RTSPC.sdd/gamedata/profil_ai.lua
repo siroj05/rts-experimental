@@ -6,6 +6,8 @@ return {
     easy = {
         nama = "Easy", ringkas = "Smaller groups, slower response",
         interval = 4, insinyur = 1, batasPasukan = 20, gelombang = 4, bantuan = 0, pabrik = 1, ekstraktor = 4,
+        -- Deathmatch (LuaRules/ai/militer.lua): lebih penakut, grup serang lebih besar, tanpa raid.
+        ambangSerang = .9, minSerang = 1500, raidMin = 99999,
     },
     normal = {
         nama = "Normal", ringkas = "Balanced reinforcements",
@@ -23,5 +25,7 @@ return {
         interval = 1, insinyur = 3, batasPasukan = 60, gelombang = 6, bantuan = 1, pabrik = 2, ekstraktor = 8,
         otak = "brutal", belajar = true, mundur = true, hatiHati = true, bersihkan = true,
         garisDepan = true, perebut = 4, gelombangAwal = 3,
+        -- Deathmatch (militer.lua): serang hanya grup yang tidak lebih kuat; kabur kalau panas musuh > 1,3x regu.
+        ambangSerang = .8, kaburSerang = 1.3,
     },
 }

@@ -28,6 +28,7 @@ local pengintai = UnitDefNames.pengintai.id
 local lontar = VFS.Include("gamedata/lontar.lua")
 local Otak = VFS.Include("LuaRules/ai/otak_brutal.lua")
 local GarisDepan = VFS.Include("LuaRules/ai/garis_depan.lua")
+local Militer = VFS.Include("LuaRules/ai/militer.lua")
 local tempur = {}
 for id, def in pairs(UnitDefs) do
     if def.customParams.duduki == "1" then tempur[#tempur + 1] = id end
@@ -73,6 +74,16 @@ local function jarak2(ax, az, bx, bz) return (ax - bx)^2 + (az - bz)^2 end
 local function buatPengendali(tim, rencana)
     -- Tingkat per tim (modoption tingkat_ai_<tim>, untuk uji adu tingkat); bawaan tingkat_ai pertandingan.
     local tingkat = profil[opsi["tingkat_ai_" .. tim]] or tingkat
+    -- Khusus uji A/B: modoption uji_ai_<tim>="kunci:nilai,kunci:nilai" menimpa salinan profil (angka/true/false).
+    if opsi["uji_ai_" .. tim] then
+        local salinan = {}
+        for k, v in pairs(tingkat) do salinan[k] = v end
+        for k, v in string.gmatch(opsi["uji_ai_" .. tim], "([%w_]+):([%w_.%-]+)") do
+            if v == "true" then salinan[k] = true elseif v == "false" then salinan[k] = false
+            else salinan[k] = tonumber(v) or v end
+        end
+        tingkat = salinan
+    end
     -- Otak brutal: gaya main per peta (belajar antarronde) mengubah salinan profil sebelum rencana bangun disusun.
     local gayaNama
     local hancur = aturan.mode == "hancur"
@@ -115,6 +126,11 @@ local function buatPengendali(tim, rencana)
     local garis = otak and (tingkat.garisDepan or hancur) and GarisDepan.baru({tim = tim, tingkat = tingkat,
         aturan = aturan, otak = otak, tempurSet = tempurSet, pengintai = pengintai, artileri = artileri, lontar = lontar,
         hq = hq, pabrik = pabrik, pabrikRobot = pabrikRobot, ekstraktor = ekstraktor, pompa = pompa})
+    -- Deathmatch: tugas militer gaya CircuitAI (LuaRules/ai/militer.lua) memakai peta panas garis depan.
+    -- Eksperimen, mati bawaan (2026-11-25: belum lebih baik dari AI lama); nyalakan dengan modoption ai_militer=1.
+    local militer = hancur and garis and opsi.ai_militer == "1" and Militer.baru({tim = tim, tingkat = tingkat, otak = otak, garis = garis, hq = hq,
+        ekstraktor = ekstraktor, pompa = pompa, pabrik = pabrik, pabrikRobot = pabrikRobot, artileri = artileri,
+        lontar = lontar})
 
     local function GameStart()
         local _, _, _, timAI = sp.GetTeamInfo(tim, false)
@@ -137,6 +153,7 @@ local function buatPengendali(tim, rencana)
         end
         if otak and aktif then otak.Mulai(sekutu, bx, bz, maju) end
         if garis and aktif then garis.Mulai(sekutu, bx, bz) end
+        if militer and aktif then militer.Mulai(sekutu, bx, bz, maju) end
     end
 
     local function unitJadi(def)
@@ -551,6 +568,20 @@ local function buatPengendali(tim, rencana)
         end
 
         -- Garis depan (gaya C.R.A.I.G): perebut titik terpisah + regu tempur ke garis depan dengan rasa takut.
+        if militer then
+            -- Tanpa gelombang: tugas DEFEND militer sudah mengumpulkan pasukan sampai cukup kuat.
+            local keluar = {}
+            for _, unit in ipairs(pasukan) do
+                local ux, _, uz = sp.GetUnitPosition(unit)
+                if dilepas[unit] or sudahKeluar(ux, uz, pabrikJadi, unit) then
+                    dilepas[unit] = true
+                    keluar[#keluar + 1] = unit
+                end
+            end
+            militer.Perintah(keluar, frame, otak.BelaBerbobot(bela, frame))
+            otak.hitungan = militer.laporan
+            return
+        end
         if garis then
             local bebas = {}
             for _, unit in ipairs(pasukan) do if dilepas[unit] then bebas[#bebas + 1] = unit end end
@@ -699,6 +730,7 @@ local function buatPengendali(tim, rencana)
     local function UnitDestroyed(unit, def, team, _, _, attackerTeam)
         if otak then otak.Hancur(unit, def, team, attackerTeam) end
         if garis then garis.Hancur(unit) end
+        if militer then militer.Hancur(unit) end
         penugasan[unit], lahir[unit] = nil, nil
         dilepas[unit] = nil
     end

@@ -246,7 +246,7 @@ function M.baru(c)
                 local sx, sz = t.x - ni * n * S, t.z - nj * n * S
                 if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, kunciPilih end
             end
-            return x, z, ni, nj, kunciPilih
+            return t.x, t.z, ni, nj, kunciPilih
         end
         return t.x, t.z, ni, nj, kunciPilih
     end
@@ -301,7 +301,9 @@ function M.baru(c)
                 local sx, sz = terbaik.x - ni * n * S, terbaik.z - nj * n * S
                 if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, terbaik.kunci end
             end
-            return x, z, ni, nj, terbaik.kunci -- tidak ada sel tunggu yang bisa dilalui: tetap di tempat
+            -- Tidak ada sel tunggu yang bisa dilalui: maju ke sasaran (diam di tempat dulu membuat 4v4 berakhir seri).
+            local depan = math.min(p, 160)
+            return terbaik.x - ni * depan, terbaik.z - nj * depan, ni, nj, terbaik.kunci, terbaik.unit
         end
         -- Bangunan yang diketahui ID-nya diserang langsung (CMD.ATTACK) saat regu dekat; titik tujuan di depan bangunan
         -- (bukan di tengah tapaknya yang tidak bisa dicapai: dulu 50 unit nyangkut 500 elmo dari markas musuh).
@@ -370,6 +372,8 @@ function M.baru(c)
             tujuanUnit[unit] = {k = "r" .. terbaik}
         end
     end
+
+    function o.Panas(x, z) return panasMusuh[idx(sel(x, z))] or 0 end
 
     function o.Hancur(unit)
         perebut[unit], tujuanUnit[unit] = nil, nil

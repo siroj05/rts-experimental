@@ -110,9 +110,15 @@ function M.baru(c)
         for u, m in pairs(ingat) do
             if frame - m.f > 40 * Game.gameSpeed then ingat[u] = nil else kekuatanMusuh = kekuatanMusuh + m.n end
         end
+        -- Kekuatan kita = semua tim sekutu (di 4v4 dulu hanya tim sendiri dibanding gabungan 4 tim musuh, sehingga mode
+        -- tekan tidak pernah aktif walau kubu unggul 3x).
         kekuatanKita = 0
-        for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, c.tempur)) do
-            if not sp.GetUnitIsBeingBuilt(u) then kekuatanKita = kekuatanKita + nilaiUnit(u, sp.GetUnitDefID(u)) end
+        for _, t in ipairs(sp.GetTeamList()) do
+            if sp.AreTeamsAllied(t, tim) then
+                for _, u in ipairs(sp.GetTeamUnitsByDefs(t, c.tempur)) do
+                    if not sp.GetUnitIsBeingBuilt(u) then kekuatanKita = kekuatanKita + nilaiUnit(u, sp.GetUnitDefID(u)) end
+                end
+            end
         end
 
         local a = c.aturan
@@ -271,7 +277,9 @@ function M.baru(c)
         for _, u in ipairs(pasukan) do
             local hp, maks = sp.GetUnitHealth(u)
             local r = hp and maks and hp / maks or 1
-            if not mundur[u] and r < .3 and adaInsinyur and tingkat.mundur then
+            -- Ambang mundur: 30% (titik), 45% di Deathmatch (retreat fighter CircuitAI 0,45).
+            local batasHP = tingkat.mundurHP or (c.aturan.mode == "hancur" and .45 or .3)
+            if not mundur[u] and r < batasHP and adaInsinyur and tingkat.mundur then
                 mundur[u] = frame
                 local x, z = bx + maju[1] * 120, bz + maju[2] * 120
                 sp.GiveOrderToUnit(u, CMD.MOVE, {x, sp.GetGroundHeight(x, z), z}, 0)
