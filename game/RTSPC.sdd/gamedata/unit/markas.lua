@@ -3,10 +3,10 @@ local bangunan = {
     inti_komando = {
         name = "Command Core", description = "Headquarters and Engineer Bot production",
         objectname = "inti-komando.glb", script = "inti_komando.lua", category = "DARAT",
-        health = 12000, power = 500, footprintx = 12, footprintz = 12,
+        health = 12000, power = 500, footprintx = 9, footprintz = 9, -- model 70% (2026-11-24)
         builder = true, workerTime = 30, buildOptions = {"robot_insinyur"},
         canMove = true, speed = 0, -- Recoil MOVE mengatur rally; bangunannya tetap statis.
-        yardMap = ("o"):rep(144), -- Robot dibuat di depan pintu HQ, di luar tapak.
+        yardMap = ("o"):rep(81), -- Robot dibuat di depan pintu HQ, di luar tapak.
         sightDistance = 400, metalStorage = 2000, energyStorage = 3200,
         metalMake = 1, energyMake = 15, levelGround = false,
     },

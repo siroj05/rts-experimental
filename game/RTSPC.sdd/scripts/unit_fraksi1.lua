@@ -32,9 +32,10 @@ for _, k in ipairs({"kiri", "kanan"}) do
 end
 
 local function track(side, travel)
-    if math.abs(travel) < .002 then travel = 0 end
+    if not (math.abs(travel) >= .002) then travel = 0 end -- juga menyaring NaN
     side.dist = (side.dist + travel) % side.pitch
-    local nextPhase = math.floor(side.dist * #side.lane / side.pitch) + 1
+    -- Pembulatan float bisa membuat dist == pitch; batasi indeks fase ke 1..#lane.
+    local nextPhase = math.min(#side.lane, math.max(1, math.floor(side.dist * #side.lane / side.pitch) + 1))
     if nextPhase ~= side.phase then
         Hide(side.lane[side.phase])
         Show(side.lane[nextPhase])

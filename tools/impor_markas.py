@@ -13,6 +13,10 @@ from impor_medium_tank import ELMO_PER_METER, GAME, ROOT, load_glb
 
 
 V2 = ROOT.parent / "rts-pc-v2" / "Assets" / "Konten"
+# Skala tambahan per model (🟡 2026-11-24, disetujui user lewat "kerjain yang nomor 3"): markas v2 sekitar 4× panjang
+# tank, diperkecil ke 70%. Tapak di gamedata/unit/markas.lua ikut disesuaikan.
+SKALA = {"inti-komando": .7, "inti-komando-bangkai": .7}
+
 MODELS = {
     "inti-komando": "Bangunan/IntiKomando/IntiKomando.glb",
     "robot-insinyur": "Unit/RobotInsinyur/RobotInsinyur.glb",
@@ -115,6 +119,7 @@ def door_data(source, stem):
 
 
 def convert(stem, source, tile_size=1024):
+    elmo = ELMO_PER_METER * SKALA.get(stem, 1)
     gltf, source_blob = load_glb(source)
     transforms = ("translation", "scale", "rotation", "matrix")
     if any(any(key in n for key in transforms) for n in gltf["nodes"]):
@@ -160,12 +165,12 @@ def convert(stem, source, tile_size=1024):
             uv = read(attrs["TEXCOORD_0"]).copy() if "TEXCOORD_0" in attrs else np.full((len(pos), 2), .5, dtype="f4")
             slot = part["material"]
             uv = (uv * (tile - 2 * pad) + [slot % row * tile + pad, slot // row * tile + pad]) / (row * tile)
-            positions.append(vec_z_up(pos - pivot) * ELMO_PER_METER)
+            positions.append(vec_z_up(pos - pivot) * elmo)
             normals.append(vec_z_up(read(attrs["NORMAL"])))
             coords.append(uv.astype("<f4"))
             faces.append(read(part["indices"]).astype("<u4") + count)
             count += len(pos)
-        nodes.append({"name": name, "mesh": len(meshes), "translation": (vec_z_up(pivot) * ELMO_PER_METER).tolist()})
+        nodes.append({"name": name, "mesh": len(meshes), "translation": (vec_z_up(pivot) * elmo).tolist()})
         meshes.append({"primitives": [{
             "attributes": {
                 "POSITION": add(np.concatenate(positions), "VEC3", 5126, position=True),
@@ -183,7 +188,7 @@ def convert(stem, source, tile_size=1024):
         "robot-insinyur": {"nano": [0.45, 1.65, -1.08]},
     }
     for name, offset in sockets.get(stem, {}).items():
-        nodes.append({"name": name, "translation": (vec_z_up(np.asarray(offset)) * ELMO_PER_METER).tolist()})
+        nodes.append({"name": name, "translation": (vec_z_up(np.asarray(offset)) * elmo).tolist()})
     header = {
         "asset": {"version": "2.0"}, "scene": 0,
         "scenes": [{"nodes": list(range(len(nodes)))}], "nodes": nodes, "meshes": meshes,

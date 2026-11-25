@@ -16,11 +16,11 @@ for _, name in ipairs({"kiri", "kanan"}) do
 end
 
 local function animateSide(side, travel)
-    if math.abs(travel) <= 0.002 then
+    if not (math.abs(travel) > 0.002) then -- juga menyaring NaN
         travel = 0
     end
     side.distance = (side.distance + travel) % rig.pitch
-    local phase = math.floor(side.distance * rig.fase / rig.pitch) % rig.fase + 1
+    local phase = math.min(rig.fase, math.max(1, math.floor(side.distance * rig.fase / rig.pitch) % rig.fase + 1))
     if phase ~= side.phase then
         Hide(side.trace[side.phase])
         Show(side.trace[phase])

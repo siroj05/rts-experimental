@@ -13,6 +13,14 @@ return {
     },
     hard = {
         nama = "Hard", ringkas = "Larger groups, faster response",
-        interval = 1, insinyur = 3, batasPasukan = 50, gelombang = 8, bantuan = 1, pabrik = 2, ekstraktor = 8,
+        interval = 1, insinyur = 2, batasPasukan = 50, gelombang = 6, bantuan = 1, pabrik = 2, ekstraktor = 8,
+        hatiHati = true, bersihkan = true,
+    },
+    -- Otak brutal (LuaRules/ai/otak_brutal.lua): ingatan, dendam, mode dari skor, berburu ekonomi/markas musuh,
+    -- serbuan berkumpul, mundur untuk diperbaiki, belajar efektivitas unit dan gaya main per peta.
+    brutal = {
+        nama = "Brutal", ringkas = "Plays to win, holds grudges, adapts",
+        interval = 1, insinyur = 3, batasPasukan = 60, gelombang = 6, bantuan = 1, pabrik = 2, ekstraktor = 8,
+        otak = "brutal", belajar = true, mundur = true, hatiHati = true, kilat = true, bersihkan = true,
     },
 }

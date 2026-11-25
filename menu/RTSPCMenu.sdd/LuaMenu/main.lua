@@ -20,7 +20,7 @@ for _, entry in ipairs(maps) do
     local width = chartHeight * entry.size / entry.depth
     entry.plot = {x = 68 + (690 - width) / 2, y = 126, w = width, h = chartHeight}
 end
-local levels = {"easy", "normal", "hard"}
+local levels = {"easy", "normal", "hard", "brutal"}
 local setting = "RTSPCSkirmishDifficulty"
 local mapSetting = "RTSPCSkirmishMap"
 local ink = {0.17, 0.18, 0.15, 1}
@@ -40,6 +40,7 @@ local rows = {
     {x = 819, y = 360, w = 413, h = 49},
     {x = 819, y = 308, w = 413, h = 49},
     {x = 819, y = 256, w = 413, h = 49},
+    {x = 819, y = 204, w = 413, h = 49},
 }
 local display, body
 local onMenu, pending = false, false

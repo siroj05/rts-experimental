@@ -64,6 +64,17 @@ Lihat `docs/tahapan.md`.
 **Sebelum berhenti (termasuk saat limit hampir habis):** tulis catatan di bagian 7 (paling atas): tanggal, agen, selesai, setengah jalan (file mana, langkah berikut persisnya), hasil uji, yang menunggu keputusan user. Commit hanya kalau user minta, dan hanya file milikmu.
 
 ## 7. Catatan sesi (terbaru di atas)
+### 2026-11-24 (lanjutan 3), Claude: material markas + AI Brutal (setengah jalan, belum di-commit)
+- Selesai: markas 70% (`tools/impor_markas.py` SKALA, footprint 9×9), pelapukan tex1 bangunan (`tools/poles_material.py lapuk()`, asli di `.cache/tex1-asli/`), clamp fase track di `scripts/unit_fraksi1.lua` dan `scripts/medium_tank.lua` (error `sp_SetPieceVisibility` nil).
+- ✅ User: mode rebut titik tetap jadi mode utama (mode "saling serang" ditunda). User minta AI "brutal, hasrat ingin menang bukan cuma puas point, mampu berfikir balas dendam" dan "bisa belajar".
+- Hard (profil `hatiHati` + 2 pabrik, 8 ekstraktor) vs Normal: 6/12 (awal 3/12). Ditahan di situ.
+- Setengah jalan: otak Brutal `LuaRules/ai/otak_brutal.lua` (ingatan LOS, dendam, mode dari skor, sasaran titik/ekonomi/markas/pasukan, kumpul lalu serbu, deteksi macet, mundur + insinyur perawat, belajar efektivitas unit, gaya main per peta). Disambung di `lawan_skenario.lua` (cabang `if otak then` di urusPasukan). Profil `brutal` di `profil_ai.lua`, baris ke-4 di menu (`menu/RTSPCMenu.sdd/LuaMenu/main.lua`). Statistik antarronde `gamedata/belajar_ai.lua`, dilatih `tools/latih_ai.py` (belum pernah dijalankan).
+- Log otak: `AI GAYA tim= gaya=` dan tiap menit `AI KEADAAN tim= t= mode= sasaran= fase= kita= musuh= pusat= tuju= n= tunggu= jaga= mundur=`.
+- Uji Brutal vs Normal: versi awal 5/12. Bug yang sudah dibetulkan: pasukan macet di depan sungai, unit "mundur" tidak pernah lepas (18 unit), memilih titik kandang musuh daripada titik dekat rumah, memburu kelompok musuh tak terjangkau. Sesudahnya: Central Hill 3/3, River Valley 1/3 (sisi Brutal tim 0 saja).
+- Kendali pasukan penuh oleh otak (`pasukanOtak`) tetap kalah (1/6–4/6), jadi dimatikan. Brutal sekarang = logika titik Hard (`hatiHati`, ambang dari `otak.Ambang()` per mode) + `otak.Rawat` (mundur/perawat) + `kilat` (4 pengintai di 3 menit pertama) + `bersihkan` (Hard juga: insinyur reclaim bangkai di ladang sendiri) + belajar produksi + gaya.
+- Analisis 127 ronde (skrip di scratchpad, ulangi dengan regex atas `RONDE, SKOR/TIM`): titik dipegang di menit 4 menebak pemenang 79%, pemasukan besi menit 8 80%, jumlah pasukan 52%. Gaya `serbu` 0/4.
+- Hasil terakhir Brutal vs Normal (gaya ekonomi dipaksa, seed 4–9, 24 ronde): **9/24**. River Valley sisi tim 0: 0/6. Pemasukan rata-rata sama (13,7 vs 13,9). Brutal lebih lemah dari Hard (6/12).
+- Langkah berikut: ablation 24 ronde per fitur (tanpa `kilat`, tanpa `mundur`, insinyur 2) untuk menemukan fitur yang merugikan; baru setelah itu langkah ekonomi (rebut/jaga ladang, serbu ekstraktor musuh dengan kelompok kecil). User menolak bonus sumber daya ("tanpa bonus"). Target: Brutal ≥10/12 vs Normal, ≥8/12 vs Hard.
 ### 2026-11-24, Codex ? Verdant Ridge masuk Skirmish
 - Permintaan user mengaktifkan peta kandidat. Peluncur repo, peluncur langsung dan staging Windows memuat peta, pratinjau, skenario serta pinus dari game utama. Skor mengikuti tahap 1. Rumput dan cahaya mengikuti tahap 5.
 - Build Windows lokal dari working tree `7f256062c80b`. Uji dropdown ? Start Match dari paket memeriksa 8 HQ, 4 titik, 40 ladang dan 4.100 pinus. Uji navigasi 64/64 lulus. [Laporan dan dua screenshot integrasi](peta-punggung-hijau.md).

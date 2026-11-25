@@ -97,3 +97,12 @@ Dibuat GPT (mode B, `docs/peta-punggung-hijau.md`); pendaftaran menu, skrip uji,
 - AI vs AI headless (`uji_ronde.py`, 8 tim Normal): kontak pertama 2:09–2:11; di menit 8 tiap tim punya 22–30 unit tempur; titik berpindah tangan. Seed 2 Barat menang 21:40; seed 1 belum selesai di menit 25 (1.708 vs 1.435).
 - Visual: tampilan seluruh peta (ikon markas/unit di zoom jauh) dan pertempuran menit 8 di titik C, 161 fps dengan 297 unit (960 × 540).
 - Catatan: pohon tidak tampil di zoom paling jauh (jarak gambar fitur bawaan engine).
+
+## Material markas dan tingkat AI (2026-11-24/25)
+✅ (user: "kerjain yang nomor 3 dan no 4 dulu")
+- **Markas 70%:** `tools/impor_markas.py` (`SKALA`), footprint 12 → 9. Model 12.871 segitiga, bangkai 2.968.
+- **Pelapukan bangunan:** `tools/poles_material.py` `lapuk()` pada tex1 10 bangunan (noda, bintik, debu, desaturasi 10%); asli di `.cache/tex1-asli/`.
+- **Perbaikan skrip track:** fase track di-clamp (error `sp_SetPieceVisibility` nil di River Valley).
+- **Hard vs Normal** (12 ronde, Central Hill + River Valley, dua sisi): awal 3/12 → serbu hanya bila unggul ×1,3 (`hatiHati`) 5/12 → + 2 pabrik, 8 ekstraktor 6/12.
+- ✅ (user) Mode rebut titik tetap mode utama; mode "saling serang" ditunda. Tanpa bonus sumber daya.
+- 🟡 **Brutal (belum selesai):** `LuaRules/ai/otak_brutal.lua` + profil `brutal` + baris menu. Hasil terakhir vs Normal 9/24, lebih lemah dari Hard. Analisis 127 ronde: titik menit 4 (79%) dan pemasukan menit 8 (80%) menentukan pemenang, jumlah pasukan tidak (52%). Rincian dan langkah berikut di `docs/serah-terima.md` bagian 7.
