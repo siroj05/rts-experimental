@@ -98,7 +98,7 @@ function M.baru(c)
                         local def = sp.GetUnitDefID(u)
                         local x, _, z = sp.GetUnitPosition(u)
                         if c.tempurSet[def] then
-                            ingat[u] = {x = x, z = z, n = nilaiUnit(u, def), f = frame, t = t}
+                            ingat[u] = {x = x, z = z, n = nilaiUnit(u, def), f = frame, t = t, def = def}
                         elseif los.los and UnitDefs[def].speed == 0 then
                             bangunan[u] = {x = x, z = z, def = def, t = t}
                         end
@@ -411,6 +411,13 @@ function M.baru(c)
             sp.GiveOrderToUnit(kerja, CMD.REPAIR, {terdekat}, 0)
             return true
         end
+    end
+
+    function o.Ingatan() return ingat, bangunan end
+
+    -- Bela markas hanya kalau penyerang berbobot (bukan pengintai lewat).
+    function o.BelaBerbobot(bela, frame)
+        if bela and kekuatanDekat(bela.x, bela.z, 600, frame) >= 250 then return bela end
     end
 
     function o.Laporan()

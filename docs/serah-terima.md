@@ -64,6 +64,14 @@ Lihat `docs/tahapan.md`.
 **Sebelum berhenti (termasuk saat limit hampir habis):** tulis catatan di bagian 7 (paling atas): tanggal, agen, selesai, setengah jalan (file mana, langkah berikut persisnya), hasil uji, yang menunggu keputusan user. Commit hanya kalau user minta, dan hanya file milikmu.
 
 ## 7. Catatan sesi (terbaru di atas)
+### 2026-11-25, Claude: AI Brutal garis depan (gaya C.R.A.I.G)
+- Riset: C.R.A.I.G (AI Lua Spring:1944, GPL v2) dibaca sebagai referensi lalu ditulis ulang di `LuaRules/ai/garis_depan.lua`: grid 256 elmo, peta panas daya tembak, wilayah/garis depan, perebut terpisah (berpasangan, maks 2 per titik), regu menuju titik (komitmen +0,6), MOVE saat < 450 elmo dari titik, barisan ±60 di titik. Takut di titik mati (profil `takutTitik` untuk menghidupkan).
+- Perbaikan semua tingkat: unit yang tertahan dekat pabrik dulu tidak pernah dilepas (sampai 29/48); sekarang dianggap keluar 20 detik setelah selesai (`lahir`).
+- Hasil Verdant Ridge 4v4 Brutal vs Normal (gaya ekonomi, seed 1–3, dua sisi): 4 menang, 2 terpotong batas 30 menit dengan Brutal unggul/menguasai 4 titik. Sebelumnya 0/6.
+- `tools/uji_ronde.py --batas-nyata` (4v4 dengan Brutal butuh 10–16 menit nyata per ronde).
+- Log debug per regu di `AI KEADAAN`: `regu=<sel>x<n>(in,near,idle,@pusat)` dan `semua/lepas/dalam`.
+- Langkah berikut: uji ulang peta kecil 24 ronde dan Brutal vs Hard, ukur fps 4v4, latih gaya (`tools/latih_ai.py`), lalu mode Saling Menghancurkan.
+
 ### 2026-11-24 (lanjutan 3), Claude: material markas + AI Brutal (setengah jalan, belum di-commit)
 - Selesai: markas 70% (`tools/impor_markas.py` SKALA, footprint 9×9), pelapukan tex1 bangunan (`tools/poles_material.py lapuk()`, asli di `.cache/tex1-asli/`), clamp fase track di `scripts/unit_fraksi1.lua` dan `scripts/medium_tank.lua` (error `sp_SetPieceVisibility` nil).
 - ✅ User: mode rebut titik tetap jadi mode utama (mode "saling serang" ditunda). User minta AI "brutal, hasrat ingin menang bukan cuma puas point, mampu berfikir balas dendam" dan "bisa belajar".

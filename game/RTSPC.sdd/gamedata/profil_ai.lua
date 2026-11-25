@@ -21,6 +21,7 @@ return {
     brutal = {
         nama = "Brutal", ringkas = "Plays to win, holds grudges, adapts",
         interval = 1, insinyur = 3, batasPasukan = 60, gelombang = 6, bantuan = 1, pabrik = 2, ekstraktor = 8,
-        otak = "brutal", belajar = true, mundur = true, hatiHati = true, kilat = true, bersihkan = true,
+        otak = "brutal", belajar = true, mundur = true, hatiHati = true, bersihkan = true,
+        garisDepan = true, perebut = 4, gelombangAwal = 3,
     },
 }

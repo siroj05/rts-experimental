@@ -39,7 +39,7 @@ def siapkan_start(teks, seed, menit, opsi, semua_ai):
     return teks
 
 
-def jalankan(start, nama, seed, menit, opsi, semua_ai):
+def jalankan(start, nama, seed, menit, opsi, semua_ai, batas_nyata=None):
     scratch = ROOT / ".cache/uji-ronde" / f"{nama}-{seed}"
     if scratch.exists():
         shutil.rmtree(scratch)
@@ -71,7 +71,7 @@ end
                               "--only-local", "--nocolor", "--hidden", scratch / "start.txt"],
                              cwd=scratch, stdout=stream, stderr=subprocess.STDOUT)
         try:
-            while p.poll() is None and time.monotonic() - t0 < menit * 60 / 4 + 180:
+            while p.poll() is None and time.monotonic() - t0 < (batas_nyata or menit * 60 / 4 + 180):
                 time.sleep(.5)
                 text = log.read_text(encoding="utf-8", errors="replace")
                 if "RONDE, SELESAI" in text or any(e in text for e in ERRORS):
@@ -107,9 +107,10 @@ def main():
     ap.add_argument("--opsi", nargs="*", default=[])
     ap.add_argument("--semua-ai", action="store_true")
     ap.add_argument("--jobs", type=int, default=3)
+    ap.add_argument("--batas-nyata", type=float, default=None, help="detik nyata per ronde (bawaan menit*15+180); 4v4 butuh lebih")
     a = ap.parse_args()
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:
-        semua = list(pool.map(lambda s: jalankan(a.start, a.nama, s, a.menit, a.opsi, a.semua_ai), a.seed))
+        semua = list(pool.map(lambda s: jalankan(a.start, a.nama, s, a.menit, a.opsi, a.semua_ai, a.batas_nyata), a.seed))
     for h in semua:
         ringkas(h)
     out = ROOT / ".cache/uji-ronde" / f"{a.nama}-hasil.json"

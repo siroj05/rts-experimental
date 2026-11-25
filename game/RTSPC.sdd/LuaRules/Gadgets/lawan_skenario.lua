@@ -27,6 +27,7 @@ local artileri = UnitDefNames.artileri_ringan.id
 local pengintai = UnitDefNames.pengintai.id
 local lontar = VFS.Include("gamedata/lontar.lua")
 local Otak = VFS.Include("LuaRules/ai/otak_brutal.lua")
+local GarisDepan = VFS.Include("LuaRules/ai/garis_depan.lua")
 local tempur = {}
 for id, def in pairs(UnitDefs) do
     if def.customParams.duduki == "1" then tempur[#tempur + 1] = id end
@@ -109,6 +110,8 @@ local function buatPengendali(tim, rencana)
     local otak = gayaNama and Otak.baru({tim = tim, tingkat = tingkat, gaya = gayaNama, aturan = aturan, tempur = tempur,
         tempurSet = tempurSet, berat = berat, artileri = artileri, lontar = lontar, hq = hq, insinyur = insinyur,
         ekstraktor = ekstraktor, pompa = pompa, pabrik = pabrik, pabrikRobot = pabrikRobot})
+    local garis = otak and tingkat.garisDepan and GarisDepan.baru({tim = tim, tingkat = tingkat, aturan = aturan,
+        otak = otak, tempurSet = tempurSet, pengintai = pengintai, artileri = artileri, lontar = lontar})
 
     local function GameStart()
         local _, _, _, timAI = sp.GetTeamInfo(tim, false)
@@ -130,6 +133,7 @@ local function buatPengendali(tim, rencana)
             end
         end
         if otak and aktif then otak.Mulai(sekutu, bx, bz, maju) end
+        if garis and aktif then garis.Mulai(sekutu, bx, bz) end
     end
 
     local function unitJadi(def)
@@ -423,7 +427,12 @@ local function buatPengendali(tim, rencana)
             jumlahMusuh = jumlahMusuh}
     end
 
-    local function sudahKeluar(x, z, pabrikJadi)
+    -- Unit dianggap sudah keluar pabrik kalau jauh dari pabrik, atau sudah 20 detik sejak selesai dibangun (perbaikan
+    -- 2026-11-25, semua tingkat: unit yang tertahan di dekat pabrik dengan perintah aktif dulu tidak pernah dilepas;
+    -- di River Valley sampai 29 dari 48 unit).
+    local lahir = {}
+    local function sudahKeluar(x, z, pabrikJadi, unit)
+        if unit and lahir[unit] and sp.GetGameFrame() - lahir[unit] > 20 * Game.gameSpeed then return true end
         for _, bangunan in ipairs(pabrikJadi) do
             local px, _, pz = sp.GetUnitPosition(bangunan)
             if (x - px)^2 + (z - pz)^2 < 90^2 then return false end
@@ -510,13 +519,18 @@ local function buatPengendali(tim, rencana)
         local menunggu = {}
         for _, unit in ipairs(pasukan) do
             local x, _, z = sp.GetUnitPosition(unit)
-            if not dilepas[unit] and sudahKeluar(x, z, pabrikJadi) then
+            if not dilepas[unit] and sudahKeluar(x, z, pabrikJadi, unit) then
                 if sp.GetUnitDefID(unit) == pengintai then dilepas[unit] = true
                 else menunggu[#menunggu + 1] = unit end
+            elseif not dilepas[unit] and sp.GetUnitCommandCount(unit) == 0 then
+                -- Perbaikan 2026-11-25 (semua tingkat): unit baru yang diam di depan pintu pabrik (< 90 elmo) dulu tidak
+                -- pernah mendapat perintah; di River Valley sampai 29 dari 48 unit menumpuk di sana.
+                sp.GiveOrderToUnit(unit, CMD.MOVE, {kx, sp.GetGroundHeight(kx, kz), kz}, 0)
             end
         end
         -- Menit pembuka: dilepas berpasangan supaya titik kosong cepat direbut tanpa unit tunggal yang mudah habis.
-        local ambang = frame < 150 * Game.gameSpeed and 2 or tingkat.gelombang
+        local ambang = frame < 150 * Game.gameSpeed and 2
+            or (tingkat.gelombangAwal and frame < 360 * Game.gameSpeed and tingkat.gelombangAwal) or tingkat.gelombang
         -- Titik sendiri sedang diserang (bobot 122): unit yang menunggu langsung dilepas untuk memperkuatnya.
         local titikTerancam = false
         for _, t in ipairs(tujuan) do if t.bobot == 122 then titikTerancam = true end end
@@ -531,6 +545,24 @@ local function buatPengendali(tim, rencana)
             elseif (x - kx)^2 + (z - kz)^2 > 120^2 and sp.GetUnitCommandCount(unit) == 0 then
                 sp.GiveOrderToUnit(unit, CMD.FIGHT, {kx, sp.GetGroundHeight(kx, kz), kz}, 0)
             end
+        end
+
+        -- Garis depan (gaya C.R.A.I.G): perebut titik terpisah + regu tempur ke garis depan dengan rasa takut.
+        if garis then
+            local bebas = {}
+            for _, unit in ipairs(pasukan) do if dilepas[unit] then bebas[#bebas + 1] = unit end end
+            garis.Perintah(bebas, frame, otak.BelaBerbobot(bela, frame))
+            local nMundur, nSemua, nLepas, nDalam = 0, 0, 0, 0
+            for _, u in ipairs(unitJadi(tempur)) do
+                nSemua = nSemua + 1
+                if otak.Mundur(u) then nMundur = nMundur + 1 end
+                if dilepas[u] then nLepas = nLepas + 1 end
+                local ux, _, uz = sp.GetUnitPosition(u)
+                if not sudahKeluar(ux, uz, pabrikJadi, u) then nDalam = nDalam + 1 end
+            end
+            nMundur = string.format("%d semua=%d lepas=%d dalam=%d pasukan=%d", nMundur, nSemua, nLepas, nDalam, #pasukan)
+            otak.hitungan = string.format("%s tunggu=%d mundur=%s", garis.laporan or "-", #menunggu, nMundur)
+            return
         end
 
         -- Kendali pasukan penuh oleh otak (eksperimen 2026-11-24, kalah dari logika titik lama; mati kecuali profil
@@ -654,7 +686,8 @@ local function buatPengendali(tim, rencana)
         for _, unit in ipairs(pendukung) do urusDukungan(unit, tujuan) end
     end
 
-    local function UnitFinished(_, def, pemilik)
+    local function UnitFinished(unit, def, pemilik)
+        if pemilik == tim then lahir[unit] = sp.GetGameFrame() end
         if pemilik == tim and (def == pabrik or def == pabrikRobot) then
             pernahPunyaPabrik[def] = true
         end
@@ -662,7 +695,8 @@ local function buatPengendali(tim, rencana)
 
     local function UnitDestroyed(unit, def, team, _, _, attackerTeam)
         if otak then otak.Hancur(unit, def, team, attackerTeam) end
-        penugasan[unit] = nil
+        if garis then garis.Hancur(unit) end
+        penugasan[unit], lahir[unit] = nil, nil
         dilepas[unit] = nil
     end
 
@@ -686,6 +720,7 @@ local function buatPengendali(tim, rencana)
         end
         if otak then
             otak.Amati(frame)
+            if garis and frame % (2 * Game.gameSpeed) < interval then garis.Amati(frame) end
             if frame % (60 * Game.gameSpeed) < interval then
                 sp.Echo(string.format("AI KEADAAN tim=%d t=%d %s", tim, frame / Game.gameSpeed, otak.Laporan()))
             end
