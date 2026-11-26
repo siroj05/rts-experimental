@@ -2,6 +2,7 @@ local aturan = VFS.Include("gamedata/skenario.lua")
 if not aturan then return end
 local hud = VFS.Include("LuaUI/hud.lua")
 local batangHp = VFS.Include("LuaUI/batang_hp.lua")
+local fogPerang = VFS.Include("LuaUI/fog_perang.lua")
 local baca = Spring.GetGameRulesParam
 local warnaTim = {
     [-1] = {0.68, 0.72, 0.70},
@@ -78,11 +79,15 @@ function Update()
         Spring.SetCameraState(view, 0)
     end
     hud.Initialize(mulaiUlang, dariSkirmish and kembaliSkirmish)
+    fogPerang.Initialize()
     shown = true
 end
 
 function Shutdown()
-    if shown then hud.Shutdown() end
+    if shown then
+        hud.Shutdown()
+        fogPerang.Shutdown()
+    end
 end
 
 function LayoutButtons(_, _, _, perintah)
