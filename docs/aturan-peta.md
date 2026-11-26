@@ -54,7 +54,13 @@ Contoh penerapan: Limestone Valley 4v4 (`tools/lembah_kapur_layout.py`, `maps/le
 - Semua model buatan sendiri, 600–6.000 segitiga per model, 3 varian per jenis.
 - ✅ 2026-11-26 (user): "pohon dan batu pakai punya recoil". Pohon memakai cemara bawaan Recoil
   (`fir_tree_*.s3o` di `springcontent.sdz`, didaftarkan lewat `features/treetype.lua` di `gamedata/defs.lua`).
-  Konten bawaan Recoil 2026.09.03 tidak menyertakan model batu.
+  Konten bawaan Recoil 2026.09.03 tidak menyertakan model batu. User lalu meminta "batunya acak". Batu kapur dibuat sendiri dengan
+  `tools/buat_batu.py`: 3 varian, 1.280 segitiga per varian, dan bongkah besar menghalangi jalan. Penyebarannya
+  ditulis di fungsi `batu()` pada `tools/buat_<stem>.py`:
+  - acak, lebih rapat di kaki tebing dan jarang di padang;
+  - menjauhi rute, bukaan, arungan, tambang, teras pertahanan, markas, dan hutan;
+  - simetris putar 180°.
+  Setelah objek ditambah, uji gerak diulang.
 
 ## 6. Cahaya dan suasana
 

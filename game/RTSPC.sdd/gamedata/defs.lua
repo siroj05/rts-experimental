@@ -26,6 +26,18 @@ if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" or skenari
     for name, def in pairs(VFS.Include("features/treetype.lua", env, VFS.BASE)) do
         wrecks[name] = def
     end
+    -- Batu kapur buatan sendiri (tools/buat_batu.py; ✅ user 2026-11-26 "batunya acak"). Bongkah besar
+    -- menghalangi jalan, batu kecil tidak. Nilai reklamasi kecil dan sama untuk kedua kubu karena sebarannya
+    -- simetris.
+    for i, d in ipairs({{tapak = 1, halang = true, besi = 6}, {tapak = 2, halang = true, besi = 9},
+            {tapak = 1, halang = false, besi = 3}}) do
+        wrecks["batu_kapur_" .. i] = {
+            description = "Limestone", object = "batu-kapur-" .. i .. ".glb",
+            footprintx = d.tapak, footprintz = d.tapak, blocking = d.halang, upright = false,
+            reclaimable = true, metal = d.besi, energy = 0, damage = 4000, flammable = false,
+            autoreclaimable = false,
+        }
+    end
     -- Tepian yang dangkal bisa dilintasi. Bagian dalam masih ditutup typemap.
     for _, move in ipairs(movement) do move.maxwaterdepth = 8 end
 

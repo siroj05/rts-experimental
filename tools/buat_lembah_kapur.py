@@ -19,7 +19,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lembah_kapur_layout import (BELA_R, SEED_TERPILIH, STEM, SUNGAI_SETENGAH, TENGAH, TERAS_R, UKURAN, Layout,
@@ -472,6 +472,73 @@ def pohon(L, H):
     return hasil
 
 
+def _jarak_garis(px, pz, garis):
+    """Jarak titik-titik ke polyline (meter)."""
+    d = np.full(px.shape, 1e9)
+    for (ax, az), (bx, bz) in zip(garis[:-1], garis[1:]):
+        vx, vz = bx - ax, bz - az
+        t = np.clip(((px - ax) * vx + (pz - az) * vz) / max(vx * vx + vz * vz, 1e-9), 0, 1)
+        d = np.minimum(d, np.hypot(px - ax - t * vx, pz - az - t * vz))
+    return d
+
+
+def batu(L, H):
+    """Batu kapur acak (tahap 7, ✅ user 2026-11-26 "batunya acak").
+
+    Lebih rapat di kaki tebing (talus) dan jarang di padang. Batu menjauhi rute, bukaan, arungan, tambang,
+    teras pertahanan, markas, hutan, dan air (aturan-peta.md bagian 5). Sebaran dibuat di separuh barat lalu
+    diputar 180° supaya simetris dengan kubu lawan.
+    """
+    rng = np.random.default_rng(SEED_TERPILIH * 57)
+    gz, gx = np.gradient(H, 1.0)
+    miring = np.degrees(np.arctan(np.hypot(gx, gz)))
+    curam = np.asarray(Image.fromarray((miring > 34).astype(np.float32), "F").filter(ImageFilter.MaxFilter(25)))
+    n = 60000
+    px, pz = rng.uniform(4, UKURAN / 2, n), rng.uniform(4, UKURAN - 4, n)
+    i, j = np.clip(np.round(pz).astype(int), 0, N - 1), np.clip(np.round(px).astype(int), 0, N - 1)
+    m, h, tal = miring[i, j], H[i, j], curam[i, j] > 0
+    # Peluang: talus 3,5%, padang 0,35% per titik kandidat
+    ambil = rng.random(n) < np.where(tal & (m > 8) & (m < 33), .035, .0035)
+    ambil &= (h > .8) & (m < 33)
+    for garis in L.rute:
+        ambil &= _jarak_garis(px, pz, garis) > 14
+    for x, z in L.tambang:
+        ambil &= np.hypot(px - x, pz - z) > 22
+    for x, z in L.markas:
+        ambil &= np.hypot(px - x, pz - z) > 100
+    for x, z in L.bela:
+        ambil &= np.hypot(px - x, pz - z) > 32
+    for x, z in L.arung:
+        ambil &= np.hypot(px - x, pz - z) > 34
+    for b in L.bukaan_b:
+        ambil &= ~((np.abs(pz - b["z"]) < b["lebar"] / 2 + 10) & (np.abs(px - b["x"]) < 80))
+    for x, z, r in L.hutan:
+        ambil &= np.hypot(px - x, pz - z) > r
+    hasil = []
+    pakai = []
+    for x, z, t in zip(px[ambil], pz[ambil], tal[ambil]):
+        if any((x - a) ** 2 + (z - b) ** 2 < 5.5 ** 2 for a, b in pakai):
+            continue
+        pakai.append((x, z))
+        k = int(rng.choice(3, p=(.35, .2, .45) if t else (.25, .1, .65))) + 1
+        r = int(rng.integers(-32760, 32760))
+        for x2, z2, r2 in ((x, z, r), (UKURAN - x, UKURAN - z, r + 32768 if r < 0 else r - 32768)):
+            hasil.append((round(x2 * 8), round(z2 * 8), k, r2))
+    return hasil
+
+
+def objek():
+    """Tulis ulang pohon.lua (pohon + batu) tanpa menyentuh tekstur. Lanjutkan dengan kompilasi lalu paket."""
+    L = Layout(SEED_TERPILIH)
+    H = np.load(WORK / "tinggi.npy").astype(np.float64)
+    p, b = pohon(L, H), batu(L, H)
+    baris = [f"{{name='TreeType{k}', x={a}, z={c}, rot={r}, scale=1.0}}\n" for a, c, k, r in p]
+    baris += [f"{{name='batu_kapur_{k}', x={a}, z={c}, rot={r}, scale=1.0}}\n" for a, c, k, r in b]
+    (WORK / "pohon.lua").write_text("".join(baris), encoding="ascii")
+    per = [sum(1 for t in b if t[2] == k) for k in (1, 2, 3)]
+    print(f"objek: {len(p)} pohon, {len(b)} batu (besar {per[0]}, lempeng {per[1]}, kecil {per[2]})")
+
+
 def tekstur_sementara(H, aliran, path):
     """Warna dasar sederhana dari lereng, tinggi, dan aliran (diganti tekstur final di tahap 4)."""
     gz, gx = np.gradient(H, 1.0)
@@ -792,8 +859,9 @@ def paket():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "dnts", "langit", "kompilasi", "paket"])
+    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "dnts", "langit", "objek", "kompilasi",
+                                          "paket"])
     a = ap.parse_args()
-    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "dnts": dnts, "langit": langit,
+    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "dnts": dnts, "langit": langit, "objek": objek,
      "kompilasi": kompilasi, "paket": paket}[a.tahap]()
 
