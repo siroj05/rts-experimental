@@ -26,10 +26,14 @@ def isi(d, bentuk, *args, **kw):
     getattr(d, bentuk)(*args, fill=(255, 255, 255, 255), **kw)
 
 
-def kendaraan(laras=True, lebar=.62, tinggi=.42):
+def kendaraan(laras=True, lebar=.62, tinggi=.42, rongga=False):
     im, d = kanvas()
     w, h = S * lebar, S * tinggi
     isi(d, "rectangle", ((S - w) / 2, (S - h) / 2, (S + w) / 2, (S + h) / 2))
+    if rongga:
+        # Tank ringan: badan berongga supaya beda dari Medium Tank di ukuran kecil (2026-11-26).
+        t = S * .1
+        d.rectangle(((S - w) / 2 + t, (S - h) / 2 + t, (S + w) / 2 - t, (S + h) / 2 - t), fill=(20, 22, 24, 255))
     if laras:
         isi(d, "rectangle", (S * .5 - 5, S * .14, S * .5 + 5, S * .5))
     return im
@@ -41,9 +45,12 @@ def baji():
     return im
 
 
-def segitiga_kecil():
+def chevron():
+    # Pengintai: chevron terbuka (^), dulu segitiga kecil yang tertukar dengan baji Destroyer (2026-11-26).
     im, d = kanvas()
-    isi(d, "polygon", [(S * .5, S * .26), (S * .74, S * .72), (S * .26, S * .72)])
+    pts = [(S * .2, S * .72), (S * .5, S * .26), (S * .8, S * .72)]
+    d.line(pts, fill=(20, 22, 24, 255), width=34, joint="curve")
+    d.line(pts, fill=(255, 255, 255, 255), width=18, joint="curve")
     return im
 
 
@@ -88,8 +95,8 @@ def persegi(r=.3, tanda=None):
 
 # nama ikon -> (gambar, ukuran relatif)
 IKON = {
-    "tank": (kendaraan(), 1.25), "tank_ringan": (kendaraan(lebar=.52, tinggi=.36), 1.05),
-    "destroyer": (baji(), 1.25), "pengintai": (segitiga_kecil(), .9), "artileri": (artileri(), 1.15),
+    "tank": (kendaraan(), 1.25), "tank_ringan": (kendaraan(lebar=.56, tinggi=.4, rongga=True), 1.1),
+    "destroyer": (baji(), 1.25), "pengintai": (chevron(), .9), "artileri": (artileri(), 1.15),
     "robot": (bulat(), .8), "roket": (ketupat(), .85), "insinyur": (plus(), .95),
     "markas": (persegi(.34, "markas"), 2.0), "pabrik": (persegi(.32, "pabrik"), 1.6), "menara": (persegi(.24, "menara"), 1.3),
     "bangunan": (persegi(.22), 1.1),

@@ -2,7 +2,7 @@
 return {
     default = {bitmap = "icons/bangunan.png", size = 1.1},
     tank = {bitmap = "icons/tank.png", size = 1.25},
-    tank_ringan = {bitmap = "icons/tank_ringan.png", size = 1.05},
+    tank_ringan = {bitmap = "icons/tank_ringan.png", size = 1.1},
     destroyer = {bitmap = "icons/destroyer.png", size = 1.25},
     pengintai = {bitmap = "icons/pengintai.png", size = 0.9},
     artileri = {bitmap = "icons/artileri.png", size = 1.15},

@@ -21,9 +21,19 @@ local function kotak(x, y, w, h, warna)
     gl.Rect(x, y, x + w, y + h)
 end
 
+-- Font sama dengan menu utama dan HUD (Barlow, OFL), dimuat besar supaya tetap tajam setelah diskalakan.
+local fontIsi = gl.LoadFont("LuaUI/fonts/Barlow-Medium.ttf", 64, 0, 0)
+local fontJudul = gl.LoadFont("LuaUI/fonts/BarlowCondensed-Bold.ttf", 64, 0, 0)
+
 local function teks(s, x, y, ukuran, warna, rata)
-    gl.Color(warna)
-    gl.Text(s, x, y, ukuran, rata or "")
+    local f = ukuran >= 24 and fontJudul or fontIsi
+    if f then
+        f:SetTextColor(warna[1], warna[2], warna[3], warna[4] or 1)
+        f:Print(s, x, y, ukuran, rata or "")
+    else
+        gl.Color(warna)
+        gl.Text(s, x, y, ukuran, rata or "")
+    end
 end
 
 local function posisi()

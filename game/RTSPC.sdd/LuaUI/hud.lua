@@ -2,17 +2,22 @@ local hud = {}
 local sp = Spring
 local minArtileri = VFS.Include("gamedata/lontar.lua").jarakMin
 local elmoPerMeter = 8
+-- Palet HUD = palet menu utama (LuaMenu/main.lua): olive gelap, krem "bone", aksen oranye (2026-11-26).
+-- Aksen oranye hanya untuk yang interaktif/aktif; hijau zaitun untuk HP dan laju positif; besi baja, energi biru kabut.
 local warna = {
-    bingkai = {0.30, 0.36, 0.36, 1},
-    panel = {0.071, 0.103, 0.117, 0.98},
-    lapis = {0.111, 0.153, 0.169, 1},
-    gelap = {0.046, 0.067, 0.075, 1},
-    putih = {0.93, 0.95, 0.92, 1},
-    redup = {0.64, 0.72, 0.72, 1},
-    teal = {0.38, 0.84, 0.76, 1},
-    besi = {0.91, 0.70, 0.42, 1},
-    energi = {0.46, 0.76, 0.92, 1},
-    merah = {0.97, 0.53, 0.45, 1},
+    bingkai = {0.27, 0.29, 0.24, 1},
+    garis = {0.20, 0.215, 0.18, 1},
+    panel = {0.095, 0.102, 0.09, 0.94},
+    lapis = {0.135, 0.145, 0.125, 1},
+    sorot = {0.19, 0.20, 0.17, 1},
+    gelap = {0.06, 0.064, 0.056, 1},
+    putih = {0.95, 0.90, 0.79, 1},
+    redup = {0.64, 0.64, 0.56, 1},
+    aksen = {0.94, 0.65, 0.39, 1},
+    sehat = {0.62, 0.76, 0.42, 1},
+    besi = {0.74, 0.77, 0.78, 1},
+    energi = {0.52, 0.74, 0.80, 1},
+    merah = {0.88, 0.45, 0.33, 1},
 }
 local peran = {
     medium_tank = "Combat vehicle", robot_insinyur = "Construction unit",
@@ -25,6 +30,18 @@ local peran = {
     tiang_relay = "Power relay", gardu = "Local power supply", gudang = "Resource storage",
     radar = "Early warning", menara_pertahanan = "Ground defense",
 }
+-- Nama tipe kendaraan bernuansa militer Jerman (🟡 usulan Claude 2026-11-26, fiktif: bukan nama kendaraan sejarah
+-- yang terkenal dan tanpa istilah yang lekat dengan Nazi). Judul kartu produksi = julukan; info hover = nama lengkap.
+local sandi = {
+    pengintai = {"Elster", "Spähwagen \"Elster\""},
+    tank_ringan = {"Dachs", "Leichter Kampfwagen \"Dachs\""},
+    medium_tank = {"Keiler", "Kampfwagen \"Keiler\""},
+    medium_tank_destroyer = {"Habicht", "Jagdwagen \"Habicht\""},
+    artileri_ringan = {"Donner", "Feldhaubitze \"Donner\""},
+}
+local namaArmor = {}
+for nama, id in pairs(Game.armorTypes or {}) do namaArmor[id] = nama end
+
 local order = {
     {CMD.MOVE, "Move", "Click a destination."},
     {CMD.ATTACK, "Attack", "Choose a target. Shortcut A."},
@@ -52,50 +69,86 @@ local lebarLama, tinggiLama
 local aktif = false
 local mulaiUlang, kembaliMenu
 
+local S = 1 -- skala layar / 1280x720, diisi hud.Draw
+local function px(v) return math.floor(v * S + .5) end
+
+local fontIsi = gl.LoadFont("LuaUI/fonts/Barlow-Medium.ttf", 64, 0, 0)
+local fontJudul = gl.LoadFont("LuaUI/fonts/BarlowCondensed-Bold.ttf", 64, 0, 0)
+
 local function isi(c)
     gl.Color(c[1], c[2], c[3], c[4] or 1)
 end
 
 local function kotak(x, y, w, h, c)
     isi(c)
-    gl.Rect(x, y, x + w, y + h)
+    local x0, y0 = px(x), px(y)
+    gl.Rect(x0, y0, math.max(x0 + 1, px(x + w)), math.max(y0 + 1, px(y + h)))
 end
 
 local function sudut(x, y, w, h, cut, c)
     isi(c)
+    local x0, y0, x1, y1, k = px(x), px(y), px(x + w), px(y + h), px(cut)
     gl.BeginEnd(GL.TRIANGLE_FAN, function()
-        gl.Vertex(x, y)
-        gl.Vertex(x + w, y)
-        gl.Vertex(x + w, y + h - cut)
-        gl.Vertex(x + w - cut, y + h)
-        gl.Vertex(x + cut, y + h)
-        gl.Vertex(x, y + h - cut)
+        gl.Vertex(x0, y0)
+        gl.Vertex(x1, y0)
+        gl.Vertex(x1, y1 - k)
+        gl.Vertex(x1 - k, y1)
+        gl.Vertex(x0 + k, y1)
+        gl.Vertex(x0, y1 - k)
     end)
 end
 
 local function panel(r)
-    sudut(r.x, r.y - 2, r.w, r.h, 10, warna.gelap)
+    sudut(r.x, r.y - 2, r.w, r.h, 10, {0, 0, 0, .35})
     sudut(r.x, r.y, r.w, r.h, 10, warna.bingkai)
     sudut(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 9, warna.panel)
-    kotak(r.x + 8, r.y + 4, r.w - 16, 1, warna.lapis)
+    kotak(r.x + 10, r.y + r.h - 2, r.w - 20, 1, warna.garis)
 end
 
-local function teks(s, x, y, size, c, align, max)
-    if max then
-        size = math.min(size, max / math.max(.1, gl.GetTextWidth(s)))
+local function lebarTeks(s, size, judul)
+    local f = judul and fontJudul or fontIsi
+    return (f and f:GetTextWidth(s) or gl.GetTextWidth(s)) * size
+end
+
+-- Teks tidak lagi dikecilkan otomatis (ukuran judul kartu dulu berbeda-beda); kepanjangan dipotong dengan "…".
+local function teks(s, x, y, size, c, align, max, judul)
+    s = tostring(s)
+    if max and lebarTeks(s, size, judul) > max then
+        size = math.max(size * .85, max / math.max(.1, lebarTeks(s, 1, judul)))
     end
-    isi(c or warna.putih)
-    gl.Text(s, x, y, size, align or "")
+    if max and lebarTeks(s, size, judul) > max then
+        while #s > 1 and lebarTeks(s .. "…", size, judul) > max do s = s:sub(1, -2) end
+        s = s:gsub("%s+$", "") .. "…"
+    end
+    local f = judul and fontJudul or fontIsi
+    local c2 = c or warna.putih
+    if f then
+        f:SetTextColor(c2[1], c2[2], c2[3], c2[4] or 1)
+        f:Print(s, px(x), px(y), size * S, align or "")
+    else
+        isi(c2)
+        gl.Text(s, px(x), px(y), size * S, align or "")
+    end
+end
+
+local function judul(s, x, y, size, c, align, max)
+    teks(s, x, y, size, c, align, max, true)
 end
 
 local function bar(x, y, w, h, nilai, c)
     kotak(x, y, w, h, warna.gelap)
-    kotak(x, y, w * math.min(1, math.max(0, nilai)), h, c)
+    local n = math.min(1, math.max(0, nilai))
+    if n > 0 then kotak(x, y, w * n, h, c) end
 end
 
 local function angka(value)
     local s = tostring(math.floor(value + 0.5))
-    return s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    return (s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+end
+
+local function ringkas(value)
+    if value >= 1000 then return (string.format("%.1fk", value / 1000):gsub("%.0k", "k")) end
+    return tostring(math.floor(value + .5))
 end
 
 local function laju(value)
@@ -106,8 +159,8 @@ local function dalam(r, x, y)
     return x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h
 end
 
-local function tambahAksi(x, y, w, h, fungsi, petunjuk)
-    aksi[#aksi + 1] = {x = x, y = y, w = w, h = h, fungsi = fungsi, petunjuk = petunjuk}
+local function tambahAksi(x, y, w, h, fungsi, petunjuk, def)
+    aksi[#aksi + 1] = {x = x, y = y, w = w, h = h, fungsi = fungsi, petunjuk = petunjuk, def = def}
 end
 
 local function panelPos(lebar, tinggi)
@@ -185,24 +238,78 @@ local function batasSenjata(def)
     return jarak, jarakMin
 end
 
+-- Cakram di tanah (cincin konsentris mengikuti tinggi tanah) untuk masker stencil dan isi tipis.
+local CINCIN, RUAS = 5, 48
+local sinR, cosR = {}, {}
+for i = 0, RUAS do sinR[i], cosR[i] = math.sin(i / RUAS * 2 * math.pi), math.cos(i / RUAS * 2 * math.pi) end
+local function cakram(x, z, r)
+    local dalam = {}
+    for i = 0, RUAS do dalam[i] = {x, sp.GetGroundHeight(x, z) + 4, z} end
+    for k = 1, CINCIN do
+        local rr = r * k / CINCIN
+        local luar = {}
+        for i = 0, RUAS do
+            local px, pz = x + cosR[i] * rr, z + sinR[i] * rr
+            luar[i] = {px, sp.GetGroundHeight(px, pz) + 4, pz}
+        end
+        gl.BeginEnd(GL.TRIANGLE_STRIP, function()
+            for i = 0, RUAS do
+                gl.Vertex(dalam[i][1], dalam[i][2], dalam[i][3])
+                gl.Vertex(luar[i][1], luar[i][2], luar[i][3])
+            end
+        end)
+        dalam = luar
+    end
+end
+
+-- Jangkauan unit terpilih digabung seperti genre RTS sejenis: satu garis luar gabungan + isi tipis, busur di dalam
+-- jangkauan unit lain disembunyikan (2026-11-26, ditulis sendiri dengan stencil):
+-- 1. Cakram tiap unit (radius dikurangi sedikit) ditulis ke stencil, warna mati.
+-- 2. Garis lingkaran penuh hanya digambar di luar stencil -> busur dalam hilang, garis luar tetap.
+-- 3. Isi tipis sekali per piksel (stencil EQUAL lalu ZERO) supaya tumpukan tidak makin pekat.
+-- Jarak minimum artileri tetap lingkaran merah terpisah.
 function hud.DrawWeaponRanges()
+    local daftar = {}
     for _, id in ipairs(unitTerpilih) do
         local defID = sp.GetUnitDefID(id)
         if defID then
             local maksimum, minimum = batasSenjata(UnitDefs[defID])
             if maksimum > 0 then
                 local x, y, z = sp.GetUnitViewPosition(id)
-                if x then
-                    gl.Color(.48, .86, 1, .82)
-                    gl.DrawGroundCircle(x, y, z, maksimum, 128)
-                    if minimum > 0 then
-                        gl.Color(1, .19, .14, .95)
-                        gl.DrawGroundCircle(x, y, z, minimum, 96)
-                    end
-                end
+                if x then daftar[#daftar + 1] = {x, y, z, maksimum, minimum} end
             end
         end
     end
+    if #daftar == 0 then return end
+    local susut = 6
+    gl.Clear(GL.STENCIL_BUFFER_BIT, 0)
+    gl.StencilTest(true)
+    gl.StencilMask(1)
+    -- 1. Masker
+    gl.DepthTest(false)
+    gl.ColorMask(false, false, false, false)
+    gl.StencilFunc(GL.ALWAYS, 1, 1)
+    gl.StencilOp(GL.KEEP, GL.KEEP, GL.REPLACE)
+    for _, d in ipairs(daftar) do cakram(d[1], d[3], d[4] - susut) end
+    gl.ColorMask(true, true, true, true)
+    -- 2. Garis luar gabungan
+    gl.StencilFunc(GL.NOTEQUAL, 1, 1)
+    gl.StencilOp(GL.KEEP, GL.KEEP, GL.KEEP)
+    gl.LineWidth(2.2)
+    gl.Color(.48, .86, 1, .85)
+    for _, d in ipairs(daftar) do gl.DrawGroundCircle(d[1], d[2], d[3], d[4], 128) end
+    -- 3. Isi tipis
+    gl.StencilFunc(GL.EQUAL, 1, 1)
+    gl.StencilOp(GL.KEEP, GL.KEEP, GL.ZERO)
+    gl.Color(.48, .86, 1, .07)
+    for _, d in ipairs(daftar) do cakram(d[1], d[3], d[4] - susut) end
+    gl.StencilTest(false)
+    gl.LineWidth(1.6)
+    gl.Color(1, .19, .14, .95)
+    for _, d in ipairs(daftar) do
+        if d[5] > 0 then gl.DrawGroundCircle(d[1], d[2], d[3], d[5], 96) end
+    end
+    gl.LineWidth(1)
 end
 
 local function rentangSenjata(def)
@@ -321,7 +428,7 @@ end
 function hud.DrawRally()
     if not rally or sp.IsGUIHidden() then return end
     local x, y, z = rally[1], rally[2], rally[3]
-    isi(warna.teal)
+    isi(warna.aksen)
     gl.DrawGroundCircle(x, y + 3, z, 15, 4)
     gl.BeginEnd(GL.LINES, function()
         gl.Vertex(x, y + 3, z)
@@ -338,7 +445,19 @@ local function potret(def, x, y, side)
     local name = def.name:gsub("_", "-")
     gl.Color(1, 1, 1, 1)
     gl.Texture("LuaUI/potret/" .. name .. ".png")
-    gl.TexRect(x, y, x + side, y + side)
+    gl.TexRect(px(x), px(y), px(x + side), px(y + side))
+    gl.Texture(false)
+end
+
+-- Simbol tipe = ikon strategis zoom jauh (icons/, tools/buat_ikon.py), jadi kartu dan peta memakai bahasa yang sama:
+-- Medium Tank persegi + laras, Light Tank berongga, Destroyer segitiga, pengintai chevron, artileri bulat + busur.
+local ikonUnit = VFS.Include("gamedata/ikon_unit.lua")
+local function simbol(def, x, y, side, c)
+    local nama = def and ikonUnit[def.name]
+    if not nama then return end
+    isi(c or warna.putih)
+    gl.Texture("icons/" .. nama .. ".png")
+    gl.TexRect(px(x), px(y), px(x + side), px(y + side))
     gl.Texture(false)
 end
 
@@ -354,9 +473,9 @@ end
 local function gambarPilihan(r, mx, my)
     panel(r)
     local x, y = r.x + 14, r.y
-    teks("SELECTION", x, y + 120, 11, warna.redup)
+    judul("SELECTION", x, y + 121, 11, warna.redup)
     if not data.unit then
-        teks("Select a unit", x, y + 78, 22)
+        judul("Select a unit", x, y + 78, 22)
         teks("Click or drag to select.", x, y + 49, 12, warna.redup)
         return
     end
@@ -366,22 +485,22 @@ local function gambarPilihan(r, mx, my)
         sudut(x, y + 24, 72, 77, 5, warna.gelap)
         for i = 1, 4 do kotak(x + 7, y + 31 + i * 13, 58, 1, warna.panel) end
         potret(def, x + 2, y + 26, 68)
-        teks(def.humanName, x + 83, y + 83, 18, nil, nil, 132)
+        judul(def.humanName, x + 83, y + 83, 19, nil, nil, 132)
         teks(peran[def.name] or "", x + 83, y + 65, 12, warna.redup, nil, 132)
         teks(angka(data.hp) .. " / " .. angka(data.maks) .. " HP", x + 83, y + 48, 11, warna.putih)
         bar(x + 83, y + 33, 132, 6, data.hp / math.max(1, data.maks),
-            data.hp < data.maks * 0.35 and warna.merah or warna.teal)
+            data.hp < data.maks * 0.35 and warna.merah or warna.sehat)
         local rentang = rentangSenjata(def)
         local daya = sp.GetUnitRulesParam(data.unit, "daya_fraksi1")
         if daya == 0 then teks("No power", x + 83, y + 16, 11, warna.besi)
-        elseif rentang then teks(rentang, x + 83, y + 16, 11, warna.teal, nil, 132)
-        elseif daya == 1 then teks("Powered", x + 83, y + 16, 11, warna.teal) end
+        elseif rentang then teks(rentang, x + 83, y + 16, 11, warna.aksen, nil, 132)
+        elseif daya == 1 then teks("Powered", x + 83, y + 16, 11, warna.aksen) end
         return
     end
 
-    teks(jumlah .. " units", x, y + 96, 20)
+    judul(jumlah .. " units", x, y + 94, 22)
     teks(angka(data.hp) .. " / " .. angka(data.maks) .. " HP", x, y + 76, 11, warna.redup)
-    bar(x, y + 65, 216, 5, data.hp / math.max(1, data.maks), warna.teal)
+    bar(x, y + 65, 216, 4, data.hp / math.max(1, data.maks), warna.sehat)
     local jenis = {}
     for id in pairs(data.jenis) do jenis[#jenis + 1] = id end
     table.sort(jenis)
@@ -389,7 +508,7 @@ local function gambarPilihan(r, mx, my)
     for i, id in ipairs(jenis) do
         local bx = x + (i - 1) * jarak
         local item = {x = bx, y = y + 18, w = jarak - 3, h = 37}
-        sudut(bx, item.y, item.w, item.h, 4, dalam(item, mx, my) and warna.bingkai or warna.lapis)
+        sudut(bx, item.y, item.w, item.h, 4, dalam(item, mx, my) and warna.sorot or warna.lapis)
         potret(UnitDefs[id], bx + 1, item.y + 7, item.w - 3)
         teks(tostring(data.jenis[id]), bx + item.w - 4, y + 22, 10, nil, "ro")
         local def = UnitDefs[id]
@@ -411,8 +530,8 @@ end
 local function tombolTab(x, y, w, nama, key, mx, my)
     local area = {x = x, y = y, w = w, h = 24}
     sudut(x, y, w, 24, 4, tab == key and warna.lapis or (dalam(area, mx, my) and warna.lapis or warna.panel))
-    teks(nama, x + 10, y + 7, 12, tab == key and warna.teal or warna.redup)
-    if tab == key then kotak(x + 5, y, w - 10, 2, warna.teal) end
+    judul(nama, x + 10, y + 7, 13, tab == key and warna.aksen or warna.redup)
+    if tab == key then kotak(x + 5, y, w - 10, 2, warna.aksen) end
     tambahAksi(x, y, w, 24, function() tab = key end)
 end
 
@@ -431,34 +550,37 @@ local function gambarTombol(r, mx, my)
     local kolom = dua and math.ceil(#list / 2) or math.max(1, #list)
     local _, cmdAktif = sp.GetActiveCommand()
     for i, item in ipairs(list) do
-        local lebar = math.min(tab == "bangun" and 210 or 110, (w - (kolom - 1) * 6) / kolom)
-        local bx = x + ((i - 1) % kolom) * (lebar + 6)
+        local lebar = math.min(tab == "bangun" and 210 or 110, (w - (kolom - 1) * 4) / kolom)
+        local bx = x + ((i - 1) % kolom) * (lebar + 4)
         local by = dua and (i <= kolom and y + 68 or y + 33) or y + 34
         local tinggi = dua and 30 or 63
         local dipilih = cmdAktif == item.id
         local rBtn = {x = bx, y = by, w = lebar, h = tinggi}
         local sorot = dalam(rBtn, mx, my)
-        local dasar = item.desc.disabled and warna.gelap or (sorot and warna.bingkai or warna.lapis)
+        local dasar = item.desc.disabled and warna.gelap or (sorot and warna.sorot or warna.lapis)
         sudut(bx, by, lebar, tinggi, 5, dasar)
-        if dipilih then kotak(bx + 4, by, lebar - 8, 2, warna.teal) end
+        if dipilih then kotak(bx + 4, by, lebar - 8, 2, warna.aksen) end
         local bantuan = item.info
         if item.def and dua then
             local def = item.def
-            potret(def, bx + 3, by + 2, 26)
-            teks(def.humanName, bx + 33, by + 16, 12, nil, nil, lebar - 37)
-            teks(angka(def.metalCost) .. " I  /  " .. angka(def.energyCost) .. " E",
-                bx + 33, by + 4, 10, warna.redup, nil, lebar - 37)
+            potret(def, bx + 2, by + 3, 24)
+            local adaSimbol = ikonUnit[def.name] and def.speed > 0
+            judul(sandi[def.name] and sandi[def.name][1] or def.humanName, bx + 30, by + 16, 11.5, nil, nil,
+                lebar - 33 - (adaSimbol and 15 or 0))
+            if adaSimbol then simbol(def, bx + lebar - 16, by + 15, 12, warna.redup) end
+            teks(ringkas(def.metalCost), bx + 30, by + 4, 9.5, warna.besi)
+            teks(ringkas(def.energyCost), bx + 30 + lebarTeks(ringkas(def.metalCost), 9.5) + 6, by + 4, 9.5, warna.energi)
             bantuan = def.tooltip or def.humanName
         elseif item.def then
             local def = item.def
             sudut(bx + 5, by + 5, 51, tinggi - 10, 4, warna.gelap)
             potret(def, bx + 6, by + 6, 48)
-            teks(def.humanName, bx + 62, by + 41, 14, nil, nil, lebar - 68)
+            judul(sandi[def.name] and sandi[def.name][1] or def.humanName, bx + 62, by + 41, 15, nil, nil, lebar - 68)
             teks(angka(def.metalCost) .. " iron", bx + 62, by + 23, 11, warna.besi)
             teks(angka(def.energyCost) .. " energy", bx + 62, by + 9, 11, warna.energi)
             local count = data.antrean[-item.id]
             if count and count > 0 then
-                kotak(bx + 35, by + 7, 19, 15, warna.teal)
+                kotak(bx + 35, by + 7, 19, 15, warna.aksen)
                 teks(tostring(count), bx + 44.5, by + 10, 10, warna.gelap, "c")
             end
             bantuan = def.tooltip or def.humanName
@@ -466,16 +588,16 @@ local function gambarTombol(r, mx, my)
             teks(item.nama, bx + lebar / 2, by + (dua and (item.state and 15 or 10) or 36),
                 13, item.desc.disabled and warna.redup or warna.putih, "c", lebar - 10)
             if item.state then
-                teks(item.state, bx + lebar / 2, by + (dua and 4 or 18), 10, warna.teal, "c")
+                teks(item.state, bx + lebar / 2, by + (dua and 4 or 18), 10, warna.aksen, "c")
             end
         end
-        tambahAksi(bx, by, lebar, tinggi, function(button) klikPerintah(item, button) end, bantuan)
+        tambahAksi(bx, by, lebar, tinggi, function(button) klikPerintah(item, button) end, bantuan, item.def)
     end
 
     if aktivitas then
         local judul = aktivitas.sendiri and "Under construction" or aktivitas.nama
         teks(judul, x, y + 15, 12, nil, nil, w * .4)
-        bar(x + w * .43, y + 13, w * .40, 6, aktivitas.progres, kekurangan and warna.besi or warna.teal)
+        bar(x + w * .43, y + 13, w * .40, 6, aktivitas.progres, kekurangan and warna.besi or warna.aksen)
         teks(string.format("%d%%", aktivitas.progres * 100), x + w * .975, y + 12, 11, warna.putih, "r")
     elseif #list == 0 then
         teks("No orders available for this unit.", x, y + 66, 13, warna.redup)
@@ -499,7 +621,7 @@ local function gambarPesan()
         return
     end
     local r = layout.tengah
-    local w = math.min(r.w, gl.GetTextWidth(pesan) * 13 + 24)
+    local w = math.min(r.w, lebarTeks(pesan, 13) + 24)
     sudut(r.x, 168, w, 28, 5, warna.gelap)
     teks(pesan, r.x + 12, 177, 13, warna.besi, nil, w - 24)
 end
@@ -507,9 +629,9 @@ end
 local function gambarStok(dataStok, nama, x, y, w, c)
     kotak(x, y, w, 52, warna.lapis)
     kotak(x, y + 7, 2, 38, c)
-    teks(nama, x + 9, y + 36, 12, c)
-    teks(laju(dataStok.net), x + w - 7, y + 36, 10, dataStok.net < 0 and warna.merah or warna.teal, "r")
-    teks(angka(dataStok.stok), x + 9, y + 16, 16)
+    judul(nama, x + 9, y + 35, 13, c)
+    teks(laju(dataStok.net), x + w - 7, y + 36, 10, dataStok.net < 0 and warna.merah or warna.sehat, "r")
+    judul(angka(dataStok.stok), x + 9, y + 15, 18)
     teks("/ " .. angka(dataStok.muat), x + w - 7, y + 17, 10, warna.redup, "r")
     bar(x + 7, y + 6, w - 14, 4, dataStok.stok / math.max(1, dataStok.muat), c)
 end
@@ -517,8 +639,8 @@ end
 local function gambarKanan(r)
     panel(r)
     local x, y = r.x + 12, r.y
-    teks("RESOURCES", x, y + 122, 10, warna.redup)
-    teks("MAP", r.x + 158, y + 127, 10, warna.redup)
+    judul("RESOURCES", x, y + 123, 11, warna.redup)
+    judul("MAP", r.x + 158, y + 127, 11, warna.redup)
     gambarStok(data.besi, "Iron", x, y + 63, 134, warna.besi)
     gambarStok(data.energi, "Energy", x, y + 8, 134, warna.energi)
     local m = layout.peta
@@ -531,15 +653,15 @@ local function gambarDeathmatch(r, warnaTim)
     local x, y, w = r.x, r.y, r.w
     local tengah = x + w * .5
     local detik = math.floor(sp.GetGameFrame() / Game.gameSpeed)
-    teks("DEATHMATCH", tengah, y + 62, 12, warna.putih, "c")
+    judul("DEATHMATCH", tengah, y + 62, 13, warna.putih, "c")
     teks(string.format("%02d:%02d", math.floor(detik / 60), detik % 60), tengah, y + 46, 11, warna.redup, "c")
     for tim = 0, 1 do
         local c = warnaTim[tim]
         local hidup = sp.GetGameRulesParam("markas_hidup_" .. tim) or 0
         local awal = math.max(1, sp.GetGameRulesParam("markas_awal_" .. tim) or 1)
         local kiri = tim == 0 and x + 13 or x + w - 127
-        teks(tim == 0 and "BLUE" or "RED", kiri + 57, y + 66, 10, c, "c")
-        teks(string.format("%d / %d", hidup, awal), kiri + 57, y + 46, 19, warna.putih, "c")
+        judul(tim == 0 and "BLUE" or "RED", kiri + 57, y + 66, 11, c, "c")
+        judul(string.format("%d / %d", hidup, awal), kiri + 57, y + 45, 21, warna.putih, "c")
         bar(kiri, y + 38, 114, 3, hidup / awal, c)
     end
     teks("Destroy every enemy Command Core", tengah, y + 15, 11, warna.redup, "c")
@@ -551,15 +673,15 @@ local function gambarSkor(r, aturan, status, warnaTim)
     local x, y, w = r.x, r.y, r.w
     local tengah = x + w * .5
     local detik = math.floor(sp.GetGameFrame() / Game.gameSpeed)
-    teks("CONTROL POINTS", tengah, y + 62, 12, warna.putih, "c")
+    judul("CONTROL POINTS", tengah, y + 62, 13, warna.putih, "c")
     teks(string.format("%02d:%02d · %s points", math.floor(detik / 60), detik % 60, angka(aturan.targetSkor)),
         tengah, y + 46, 11, warna.redup, "c")
     for tim = 0, 1 do
         local c = warnaTim[tim]
         local skor = sp.GetGameRulesParam("titik_skor_" .. tim) or 0
         local awal = tim == 0 and x + 13 or x + w - 127
-        teks(tim == 0 and "BLUE" or "RED", awal + 57, y + 66, 10, c, "c")
-        teks(angka(skor), awal + 57, y + 46, 19, warna.putih, "c")
+        judul(tim == 0 and "BLUE" or "RED", awal + 57, y + 66, 11, c, "c")
+        judul(angka(skor), awal + 57, y + 45, 21, warna.putih, "c")
         bar(awal, y + 38, 114, 3, math.min(1, skor / aturan.targetSkor), c)
     end
     local chip = (w - 31 - 3 * 7) / 4
@@ -568,7 +690,7 @@ local function gambarSkor(r, aturan, status, warnaTim)
         local c, label, nilai = status(t)
         kotak(bx, y + 9, chip, 22, warna.lapis)
         if nilai > 0 then bar(bx, y + 9, chip, 2, nilai, c) end
-        teks(t.nama, bx + 8, y + 15, 13, c)
+        judul(t.nama, bx + 8, y + 14, 14, c)
         teks(label, bx + 25, y + 15, 10, warna.putih, nil, chip - 30)
     end
 end
@@ -583,7 +705,7 @@ local function gambarHasil(hasil, warnaTim, w, h)
     local caption = hasil == -2 and "Match drawn" or (hasil == 0 and "Blue wins" or "Red wins")
     local a = sp.GetGameRulesParam("titik_skor_0") or 0
     local b = sp.GetGameRulesParam("titik_skor_1") or 0
-    teks(caption, x + 180, y + 105, 26, warnaTim[hasil] or warna.putih, "c")
+    judul(caption, x + 180, y + 103, 30, warnaTim[hasil] or warna.putih, "c")
     if sp.GetGameRulesParam("mode_hancur") == 1 then
         a = sp.GetGameRulesParam("markas_hidup_0") or 0
         b = sp.GetGameRulesParam("markas_hidup_1") or 0
@@ -593,7 +715,7 @@ local function gambarHasil(hasil, warnaTim, w, h)
     end
     if mulaiUlang then
         local bx = kembaliMenu and x + 23 or x + 111
-        sudut(bx, y + 22, 138, 34, 4, warna.teal)
+        sudut(bx, y + 22, 138, 34, 4, warna.aksen)
         teks("Play Again", bx + 69, y + 33, 15, warna.gelap, "c")
         tambahAksi(bx, y + 22, 138, 34, function(button)
             if button == 1 then mulaiUlang() end
@@ -608,46 +730,95 @@ local function gambarHasil(hasil, warnaTim, w, h)
     end
 end
 
+-- Info kartu produksi (hover 1 detik, keputusan user 2026-11-26): nama, tipe, statistik singkat.
+local hoverDef, hoverMulai
+local function satu(v) return (string.format("%.1f", v):gsub("%.0$", "")) end
+local function infoKartu(def, hit, lebarLayar)
+    local baris = {}
+    local function tambah(kiri, kanan, c) baris[#baris + 1] = {kiri, kanan, c} end
+    local armor = namaArmor[def.armorType]
+    tambah("HP", angka(def.health))
+    tambah("Armor", armor == "berat" and "Heavy" or (armor == "bangunan" and "Structure" or "Light"))
+    if def.speed and def.speed > 0 then tambah("Speed", satu(def.speed / elmoPerMeter) .. " m/s") end
+    local w = def.weapons[1] and WeaponDefs[def.weapons[1].weaponDef]
+    if w then
+        local burst = (w.salvoSize or 1) > 1 and (" ×" .. w.salvoSize) or ""
+        local ringan = w.damages[0] or 0
+        local berat = Game.armorTypes and Game.armorTypes.berat and w.damages[Game.armorTypes.berat] or ringan
+        tambah("Damage", angka(ringan) .. burst .. " light · " .. angka(berat) .. burst .. " heavy")
+        tambah("Reload", satu(w.reload) .. " s")
+        local maks, mini = batasSenjata(def)
+        tambah("Range", (mini > 0 and (angka(mini / elmoPerMeter) .. "–") or "") .. angka(maks / elmoPerMeter) .. " m")
+    end
+    tambah("Cost", angka(def.metalCost) .. " iron · " .. angka(def.energyCost) .. " energy")
+    tambah("Build time", satu(def.buildTime / 30) .. " s")
+    local nama = sandi[def.name] and sandi[def.name][2] or def.humanName
+    local w0, h = 236, 52 + #baris * 15
+    local x = math.max(8, math.min(hit.x + hit.w / 2 - w0 / 2, lebarLayar - w0 - 8))
+    local y = layout.tengah.y + layout.tengah.h + 10
+    sudut(x, y - 2, w0, h, 6, {0, 0, 0, .35})
+    sudut(x, y, w0, h, 6, warna.bingkai)
+    sudut(x + 1, y + 1, w0 - 2, h - 2, 5, warna.panel)
+    kotak(x + 1, y + h - 3, w0 - 2, 2, warna.aksen)
+    local geser = ikonUnit[def.name] and 22 or 0
+    simbol(def, x + 10, y + h - 25, 18, warna.aksen)
+    judul(nama, x + 12 + geser, y + h - 22, 15, warna.putih, nil, w0 - 24 - geser)
+    local tipe = (def.tooltip and def.tooltip ~= "" and def.tooltip ~= def.humanName) and def.tooltip or peran[def.name] or ""
+    teks((sandi[def.name] and (def.humanName .. " · ") or "") .. tipe, x + 12, y + h - 38, 10.5,
+        warna.redup, nil, w0 - 24)
+    kotak(x + 12, y + h - 45, w0 - 24, 1, warna.garis)
+    for i, b in ipairs(baris) do
+        local by = y + h - 47 - i * 15
+        teks(b[1], x + 12, by, 10.5, warna.redup)
+        teks(b[2], x + w0 - 12, by, 10.5, b[3] or warna.putih, "r", w0 - 90)
+    end
+end
+
 function hud.Draw(lebar, tinggi, aturan, status, warnaTim)
     if not aktif or not data or sp.IsGUIHidden() then return end
     panelPos(lebar, tinggi)
     local s = layout.skala
+    S = s
     local mx, my = sp.GetMouseState()
     mx, my = mx / s, my / s
     aksi = {}
-    gl.PushMatrix()
-    gl.Scale(s, s, 1)
     gambarPilihan(layout.kiri, mx, my)
     gambarTombol(layout.tengah, mx, my)
     gambarKanan(layout.kanan)
     gambarSkor(layout.skor, aturan, status, warnaTim)
-    gl.PopMatrix()
     gl.Color(1, 1, 1, 1)
     gl.DrawMiniMap()
 
-    gl.PushMatrix()
-    gl.Scale(s, s, 1)
     local m = layout.peta
     for _, titik in ipairs(aturan.titik) do
         local x = m.x + titik.x / Game.mapSizeX * m.w
         local y = m.y + (1 - titik.z / Game.mapSizeZ) * m.h
         kotak(x - 6, y - 6, 12, 12, warna.gelap)
-        teks(titik.nama, x, y - 3.5, 9.5, status(titik), "c")
+        judul(titik.nama, x, y - 3.5, 10, status(titik), "c")
     end
     gambarHasil(sp.GetGameRulesParam("titik_pemenang"), warnaTim, lebar / s, tinggi / s)
     gambarPesan()
-    gl.PopMatrix()
     gl.Color(1, 1, 1, 1)
 
+    local adaHover
     for _, hit in ipairs(aksi) do
-        if not pesan and hit.petunjuk and dalam(hit, mx, my) then
-            gl.PushMatrix()
-            gl.Scale(s, s, 1)
-            local lebarTip = math.min(375, gl.GetTextWidth(hit.petunjuk) * 12 + 22)
+        if hit.def and dalam(hit, mx, my) then
+            adaHover = true
+            if hoverDef ~= hit.def.id then hoverDef, hoverMulai = hit.def.id, sp.GetTimer() end
+            if sp.DiffTimers(sp.GetTimer(), hoverMulai) >= 1 then
+                infoKartu(hit.def, hit, lebar / s)
+                break
+            end
+        end
+    end
+    if not adaHover then hoverDef = nil end
+    for _, hit in ipairs(aksi) do
+        if not pesan and not (hoverDef and sp.DiffTimers(sp.GetTimer(), hoverMulai) >= 1)
+            and hit.petunjuk and dalam(hit, mx, my) then
+            local lebarTip = math.min(375, lebarTeks(hit.petunjuk, 12) + 22)
             local x = math.min(hit.x, lebar / s - lebarTip - 16)
             sudut(x, 168, lebarTip, 26, 4, warna.gelap)
             teks(hit.petunjuk, x + 10, 177, 12, warna.putih, nil, lebarTip - 20)
-            gl.PopMatrix()
             break
         end
     end
