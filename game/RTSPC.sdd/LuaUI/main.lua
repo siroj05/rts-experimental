@@ -11,6 +11,17 @@ local warnaTim = {
 local namaTim = {[-1] = "Neutral", [0] = "Blue", [1] = "Red"}
 local warnaRebutan = {1.00, 0.79, 0.42}
 local tinggiTiang = 45
+-- Kursor buatan sendiri ada di anims/ (tools/buat_kursor.py). Attack Move (Fight) dipetakan eksplisit ke
+-- cursorfight; kursor lain dimuat engine menurut nama file.
+if Spring.AssignMouseCursor then
+    Spring.AssignMouseCursor("Fight", "cursorfight", true)
+    Spring.AssignMouseCursor("Area attack", "cursorareaattack", true)
+end
+-- Zona Command Core (daya + heal): lingkaran di tanah untuk Command Core sendiri dan sekutu.
+local defMarkas, radiusZona
+for id, ud in pairs(UnitDefs) do
+    if ud.name == "inti_komando" then defMarkas, radiusZona = id, tonumber(ud.customParams.radius_zona) end
+end
 local opsi = Spring.GetModOptions()
 local ekonomi = opsi.ekonomi == "1"
 local function kembaliSkirmish() Spring.Reload("") end
@@ -169,6 +180,15 @@ function DrawWorld()
         for _, t in ipairs(ladang) do
             local x, y, z = Spring.Pos2BuildPos(ekstraktor, t[1], 0, t[2], 0)
             gl.DrawGroundCircle(x, y + 3, z, 19, 4)
+        end
+    end
+    if defMarkas and radiusZona then
+        gl.Color(0.30, 0.85, 0.78, 0.45)
+        for _, t in ipairs(Spring.GetTeamList(Spring.GetMyAllyTeamID()) or {}) do
+            for _, u in ipairs(Spring.GetTeamUnitsByDefs(t, defMarkas) or {}) do
+                local x, y, z = Spring.GetUnitPosition(u)
+                if x then gl.DrawGroundCircle(x, y, z, radiusZona, 96) end
+            end
         end
     end
     hud.DrawRally()

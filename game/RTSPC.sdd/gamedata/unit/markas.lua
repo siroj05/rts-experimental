@@ -9,6 +9,8 @@ local bangunan = {
         yardMap = ("o"):rep(81), -- Robot dibuat di depan pintu HQ, di luar tapak.
         sightDistance = 400, metalStorage = 2000, energyStorage = 3200,
         metalMake = 1, energyMake = 15, levelGround = false,
+        -- Zona Command Core: jangkauan daya (daya_fraksi1.lua) dan heal unit sekutu (markas_rawat.lua).
+        customParams = {radius_zona = "368", rawat_persen = "2", rawat_min = "5"},
     },
     robot_insinyur = {
         name = "Engineer Bot", description = "Builds factories, extractors, and pumps",

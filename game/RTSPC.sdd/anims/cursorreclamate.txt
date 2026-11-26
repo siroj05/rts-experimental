@@ -1,0 +1,1 @@
+frame anims/cursorreclamate_0.png 0.100

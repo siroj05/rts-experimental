@@ -2,9 +2,13 @@ local sp = Spring
 local def = UnitDefs[sp.GetUnitDefID(unitID)]
 local rig = VFS.Include("gamedata/rig_fraksi1.lua")[def.name]
 local distant = def.name == "artileri_ringan"
-local lontar = distant and VFS.Include("gamedata/lontar.lua")
 local map = sp.GetUnitPieceMap(unitID)
 local turret = map.turret and piece("turret")
+-- Meriam tetap (Tank Destroyer): skrip memutar badan yang diam ke sasaran dan baru menembak setelah lurus ±3°.
+-- Tanpa ini peluru keluar 10-12° menyimpang dari arah laras (uji 2026-11-25).
+local tetap = not distant and not turret and #def.weapons > 0
+local putarBadan = distant or tetap
+local lontar = putarBadan and VFS.Include("gamedata/lontar.lua")
 local barrel = map.laras and piece("laras")
 local nano = map.nano and piece("nano")
 local muzzle = map.moncong and piece("moncong")
@@ -15,8 +19,8 @@ local barrelSpeed = math.rad(60)
 local axes = {x_axis, y_axis, z_axis}
 local satuPutaran = 65536
 local lurus = satuPutaran * 3 / 360
-local putarPerFrame = distant and math.max(1, math.floor(def.turnRate + .5))
-local jangkauanLontar = distant and WeaponDefs[def.weapons[1].weaponDef].range
+local putarPerFrame = putarBadan and math.max(1, math.floor(def.turnRate + .5))
+local jangkauanLontar = putarBadan and WeaponDefs[def.weapons[1].weaponDef].range
 local aimWatch
 local sides = {}
 for _, k in ipairs({"kiri", "kanan"}) do
@@ -93,7 +97,7 @@ local function arahLontar(weapon, x, z, heading)
     if not tx then return end
     local dx, dz = tx - x, tz - z
     local jarak = math.sqrt(dx * dx + dz * dz)
-    if jarak < lontar.jarakMin then return end
+    if distant and jarak < lontar.jarakMin then return end
     local target = sp.GetHeadingFromVector(dx, dz)
     local selisih = (target - heading + satuPutaran / 2) % satuPutaran - satuPutaran / 2
     return jarak, selisih
@@ -101,7 +105,7 @@ end
 
 local function putarKeSasaran(x, z, heading)
     local cmd = sp.GetUnitCurrentCommand(unitID)
-    if (cmd and cmd ~= CMD.ATTACK) or sp.GetUnitIsStunned(unitID) then return heading end
+    if (cmd and cmd ~= CMD.ATTACK and not (tetap and cmd == CMD.FIGHT)) or sp.GetUnitIsStunned(unitID) then return heading end
     local jarak, selisih = arahLontar(1, x, z, heading)
     if not jarak or jarak > jangkauanLontar or math.abs(selisih) <= lurus then return heading end
     -- Recoil dapat berhenti berputar saat sasaran masuk kerucut bidik 3D.
@@ -124,7 +128,7 @@ local function gerak()
         local heading = sp.GetUnitHeading(unitID)
         if not x or not fx or not heading then return end
         local dx, dz = x - px, z - pz
-        if distant and heading == lastHeading and math.abs(dx) + math.abs(dz) < .05 then
+        if putarBadan and heading == lastHeading and math.abs(dx) + math.abs(dz) < .05 then
             heading = putarKeSasaran(x, z, heading)
         end
         if sides.kiri and sides.kanan then
@@ -177,6 +181,10 @@ function script.AimWeapon(weapon, heading, pitch)
         local range, selisih = arahLontar(weapon, x, z, sp.GetUnitHeading(unitID))
         if not range or math.abs(selisih) > lurus then return false end
         pitch = lontar.sudut(range)
+    elseif tetap then
+        local x, _, z = sp.GetUnitPosition(unitID)
+        local range, selisih = arahLontar(weapon, x, z, sp.GetUnitHeading(unitID))
+        if not range or math.abs(selisih) > lurus then return false end
     elseif not turret and math.abs(heading) > math.rad(14) then
         return false
     end

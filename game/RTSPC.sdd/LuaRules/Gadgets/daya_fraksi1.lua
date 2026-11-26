@@ -6,7 +6,7 @@ if not gadgetHandler:IsSyncedCode() then return false end
 local sp, defs = Spring, UnitDefNames
 local markas, relay, gardu = defs.inti_komando.id, defs.tiang_relay.id, defs.gardu.id
 local radar, menara = defs.radar.id, defs.menara_pertahanan.id
-local cakupan = {[markas] = 46 * 8, [relay] = 24 * 8, [gardu] = 19 * 8}
+local cakupan = {[markas] = tonumber(defs.inti_komando.customParams.radius_zona), [relay] = 24 * 8, [gardu] = 19 * 8}
 local biaya = {[gardu] = 5, [radar] = 4, [menara] = 5}
 local jaringan, aktif = {}, {}
 

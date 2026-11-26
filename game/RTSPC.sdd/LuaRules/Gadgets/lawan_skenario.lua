@@ -25,6 +25,10 @@ local ekstraktor = UnitDefNames.ekstraktor_besi.id
 local pompa = UnitDefNames.pompa_minyak.id
 local artileri = UnitDefNames.artileri_ringan.id
 local pengintai = UnitDefNames.pengintai.id
+local menara = UnitDefNames.menara_pertahanan.id
+local gardu = UnitDefNames.gardu.id
+local relay = UnitDefNames.tiang_relay.id
+local radar = UnitDefNames.radar.id
 local lontar = VFS.Include("gamedata/lontar.lua")
 local Otak = VFS.Include("LuaRules/ai/otak_brutal.lua")
 local GarisDepan = VFS.Include("LuaRules/ai/garis_depan.lua")
@@ -61,12 +65,15 @@ local rencanaBawaan = {
     {unit = "pompa_minyak", jumlah = 1},
     {unit = "ekstraktor_besi", jumlah = 3},
     {unit = "pabrik_robot", jumlah = 1},
+    {unit = "menara_pertahanan", jumlah = 1}, -- jumlah menara dibatasi tingkat.menara (Easy 0)
     {unit = "pompa_minyak", jumlah = 2},
     {unit = "ekstraktor_besi", jumlah = 5},
     {unit = "pompa_minyak", jumlah = 3},
     {unit = "pabrik_kendaraan", jumlah = 2},
+    {unit = "menara_pertahanan", jumlah = 2},
     {unit = "ekstraktor_besi", jumlah = 8},
     {unit = "pompa_minyak", jumlah = 4},
+    {unit = "menara_pertahanan", jumlah = 3},
 }
 
 local function jarak2(ax, az, bx, bz) return (ax - bx)^2 + (az - bz)^2 end
@@ -110,6 +117,7 @@ local function buatPengendali(tim, rencana)
         local jumlah = b.jumlah
         if def == pabrik then jumlah = math.min(jumlah, tingkat.pabrik) end
         if def == ekstraktor then jumlah = math.min(jumlah, tingkat.ekstraktor) end
+        if def == menara then jumlah = math.min(jumlah, tingkat.menara or 0) end
         rencanaBangun[#rencanaBangun + 1] = {def = def, jumlah = jumlah}
     end
 
@@ -119,6 +127,9 @@ local function buatPengendali(tim, rencana)
     local penugasan, pernahDikuasai, dilepas = {}, {}, {}
     local pernahPunyaPabrik = {}
     local serangan -- {x, z, frame} bangunan sendiri terakhir diserang
+    local ladangDiserang = {} -- ekstraktor sendiri yang pernah diserang/dihancurkan: {x, z, frame}
+    local dayaTerakhir = -99999 -- frame perintah perbaikan daya terakhir
+    local posTerakhir = -99999 -- frame perintah pos jaga terakhir (jeda 40 detik supaya insinyur lain tidak dobel)
     local diproduksi = {}
     local otak = gayaNama and Otak.baru({tim = tim, tingkat = tingkat, gaya = gayaNama, aturan = aturan, tempur = tempur,
         tempurSet = tempurSet, berat = berat, artileri = artileri, lontar = lontar, hq = hq, insinyur = insinyur,
@@ -270,6 +281,150 @@ local function buatPengendali(tim, rencana)
         end
     end
 
+    -- Menara pertahanan: di depan markas menghadap musuh, dalam radius daya markas (46 m = 368 elmo) supaya
+    -- selalu tersambung jaringan daya, berjarak >= 100 elmo dari menara lain.
+    local function cariMenara()
+        local sx, sz = -maju[2], maju[1]
+        local ada = sp.GetTeamUnitsByDefs(tim, menara)
+        for _, lat in ipairs({0, 150, -150, 75, -75, 225, -225}) do
+            for _, dep in ipairs({250, 200, 300, 150}) do
+                local x, z = bx + maju[1] * dep + sx * lat, bz + maju[2] * dep + sz * lat
+                if jarak2(x, z, bx, bz) < 320^2 then
+                    local px, py, pz = cobaTapak(menara, x, z, 20)
+                    local renggang = px and jarak2(px, pz, bx, bz) < 340^2
+                    for _, m in ipairs(ada) do
+                        local mx, _, mz = sp.GetUnitPosition(m)
+                        if renggang and mx and jarak2(px, pz, mx, mz) < 100^2 then renggang = false end
+                    end
+                    if renggang then return px, py, pz end
+                end
+            end
+        end
+    end
+
+    -- Pos jaga tambang: ekstraktor sendiri di luar jangkauan daya markas (> 450 elmo) dijaga menara bertenaga Gardu
+    -- (jangkauan daya 19 m = 152 elmo, tidak perlu tersambung markas). Prioritas: tambang yang pernah diserang,
+    -- lalu yang paling dekat musuh. Mengembalikan def, x, y, z bangunan berikutnya (Gardu dulu, lalu menara).
+    local function cariPosLadang(frame)
+        local kuota = tingkat.menaraLadang or 0
+        if kuota == 0 then return end
+        local menaraKita = sp.GetTeamUnitsByDefs(tim, menara)
+        local nLuar = 0
+        for _, m in ipairs(menaraKita) do
+            local mx, _, mz = sp.GetUnitPosition(m)
+            if mx and jarak2(mx, mz, bx, bz) > 450^2 then nLuar = nLuar + 1 end
+        end
+        if nLuar >= kuota then return end
+        local musuh = {}
+        for _, t in ipairs(sp.GetTeamList()) do
+            if t ~= sp.GetGaiaTeamID() and not sp.AreTeamsAllied(t, tim) then
+                local ex, _, ez = sp.GetTeamStartPosition(t)
+                if ex and ex >= 0 then musuh[#musuh + 1] = {ex, ez} end
+            end
+        end
+        local terbaik, skor0, arahX, arahZ
+        for _, e in ipairs(sp.GetTeamUnitsByDefs(tim, ekstraktor)) do
+            local x, _, z = sp.GetUnitPosition(e)
+            if x and not sp.GetUnitIsBeingBuilt(e) and jarak2(x, z, bx, bz) > 450^2 then
+                local dijaga = false
+                for _, m in ipairs(menaraKita) do
+                    local mx, _, mz = sp.GetUnitPosition(m)
+                    if mx and jarak2(mx, mz, x, z) < 260^2 then dijaga = true end
+                end
+                local ancam = false
+                for _, u in ipairs(sp.GetUnitsInCylinder(x, z, 400)) do
+                    if not sp.AreTeamsAllied(sp.GetUnitTeam(u), tim) then ancam = true break end
+                end
+                if not dijaga and not ancam then
+                    local dm, mx2, mz2 = math.huge, x + maju[1], z + maju[2]
+                    for _, m in ipairs(musuh) do
+                        local d = jarak2(x, z, m[1], m[2])
+                        if d < dm then dm, mx2, mz2 = d, m[1], m[2] end
+                    end
+                    local skor = -math.sqrt(dm)
+                    for _, l in pairs(ladangDiserang) do
+                        if frame - l.frame < 180 * Game.gameSpeed and jarak2(l.x, l.z, x, z) < 300^2 then skor = skor + 5000 end
+                    end
+                    if not skor0 or skor > skor0 then
+                        local p = math.max(1, math.sqrt((mx2 - x)^2 + (mz2 - z)^2))
+                        terbaik, skor0, arahX, arahZ = {x = x, z = z}, skor, (mx2 - x) / p, (mz2 - z) / p
+                    end
+                end
+            end
+        end
+        if not terbaik then return end
+        local x, z = terbaik.x, terbaik.z
+        -- Gardu sendiri (jadi atau sedang dibangun) yang cukup dekat dengan tambang ini.
+        local g
+        for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, gardu)) do
+            local gx, _, gz = sp.GetUnitPosition(u)
+            if gx and jarak2(gx, gz, x, z) < 160^2 then g = {x = gx, z = gz} end
+        end
+        local function spiral(def, cx, cz, syarat)
+            for r = 0, 4 do
+                for i = -r, r do
+                    for _, o in ipairs(r == 0 and {{0, 0}} or {{i, -r}, {i, r}, {-r, i}, {r, i}}) do
+                        local px, py, pz = cobaTapak(def, cx + o[1] * 24, cz + o[2] * 24, 16)
+                        if px and syarat(px, pz) then return px, py, pz end
+                    end
+                end
+            end
+        end
+        if not g then
+            -- Gardu di belakang tambang (arah markas sendiri), 60-110 elmo.
+            local px, py, pz = spiral(gardu, x - arahX * 80, z - arahZ * 80, function(px, pz)
+                return jarak2(px, pz, x, z) < 130^2 end)
+            if px then return gardu, px, py, pz end
+            return
+        end
+        -- Menara di depan tambang menghadap musuh, dalam jangkauan daya Gardu (< 140 elmo).
+        local px, py, pz = spiral(menara, x + arahX * 70, z + arahZ * 70, function(px, pz)
+            return jarak2(px, pz, g.x, g.z) < 140^2 end)
+        if px then return menara, px, py, pz end
+    end
+
+    -- Bangunan butuh daya (menara, radar) yang padam: kalau di luar jangkauan sumber daya (markas 368, Relay
+    -- tersambung 192, Gardu menyala 152 elmo; sama dengan daya_fraksi1.lua) -> Gardu di sebelahnya. Kalau di dalam
+    -- jangkauan berarti energi habis -> pompa minyak. Mengembalikan def, x, y, z.
+    local function perbaikiDaya()
+        local sumber = {}
+        for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, hq)) do sumber[#sumber + 1] = {u, 368} end
+        for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, relay)) do
+            if sp.GetUnitRulesParam(u, "daya_fraksi1") == 1 then sumber[#sumber + 1] = {u, 192} end
+        end
+        for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, gardu)) do
+            -- Gardu yang masih dibangun dihitung juga, supaya tidak dobel.
+            if sp.GetUnitIsBeingBuilt(u) or sp.GetUnitRulesParam(u, "daya_fraksi1") == 1 then sumber[#sumber + 1] = {u, 152} end
+        end
+        for _, def in ipairs({menara, radar}) do
+            for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, def)) do
+                if not sp.GetUnitIsBeingBuilt(u) and sp.GetUnitRulesParam(u, "daya_fraksi1") == 0 then
+                    local x, _, z = sp.GetUnitPosition(u)
+                    local terjangkau = false
+                    for _, s2 in ipairs(sumber) do
+                        local sx, _, sz = sp.GetUnitPosition(s2[1])
+                        if sx and jarak2(sx, sz, x, z) <= (s2[2] - 8)^2 then terjangkau = true break end
+                    end
+                    if not terjangkau then
+                        -- Gardu 50-130 elmo dari bangunan (jangkauan Gardu 152), lingkar 16 arah, mulai dari sisi
+                        -- yang menghadap markas sendiri.
+                        local dasar = math.atan2(bz - z, bx - x)
+                        for _, r in ipairs({60, 90, 120, 50, 130}) do
+                            for k = 0, 15 do
+                                local a = dasar + (k % 2 == 0 and 1 or -1) * math.floor((k + 1) / 2) * math.pi / 8
+                                local px, py, pz = cobaTapak(gardu, x + math.cos(a) * r, z + math.sin(a) * r)
+                                if px and jarak2(px, pz, x, z) < 140^2 then return gardu, px, py, pz end
+                            end
+                        end
+                    else
+                        local px, py, pz = cariLahan(pompa)
+                        if px then return pompa, px, py, pz end
+                    end
+                end
+            end
+        end
+    end
+
     local gagalDilapor = {}
     local function tempatBangun(b)
         for _, t in ipairs(b.tapak or {}) do
@@ -277,7 +432,9 @@ local function buatPengendali(tim, rencana)
             if x then return x, y, z end
         end
         local x, y, z
-        if b.def == ekstraktor then x, y, z = cariEkstraktor() else x, y, z = cariLahan(b.def) end
+        if b.def == ekstraktor then x, y, z = cariEkstraktor()
+        elseif b.def == menara then x, y, z = cariMenara()
+        else x, y, z = cariLahan(b.def) end
         if not x and not gagalDilapor[b.def] then
             gagalDilapor[b.def] = true
             sp.Echo(string.format("AI tim %d: tidak ada tapak untuk %s di sekitar (%d, %d)", tim, UnitDefs[b.def].name, bx, bz))
@@ -386,9 +543,33 @@ local function buatPengendali(tim, rencana)
                         selesai = true
                     end
                 end
+                -- Menara/radar padam: Gardu kalau di luar jangkauan daya, pompa kalau energi habis (jeda 30 detik).
+                if not selesai and frame - dayaTerakhir > 30 * Game.gameSpeed then
+                    local def, x, y, z = perbaikiDaya()
+                    if def and mampu(def, .5) then
+                        sp.GiveOrderToUnit(kerja, -def, {x, y, z, hadap}, 0)
+                        dipesan[def] = (dipesan[def] or 0) + 1
+                        dayaTerakhir = frame
+                        selesai = true
+                    end
+                end
+                -- Markas diserang (20 detik terakhir, dalam 900 elmo): menara didahulukan sampai kuota tingkat.
+                local nMenara = #sp.GetTeamUnitsByDefs(tim, menara) + (dipesan[menara] or 0)
+                local energiCukup = (eIn - (eOut or 0)) > 6 -- menara memakai 5 energi/detik saat menyala
+                if not selesai and serangan and frame - serangan.frame < 20 * Game.gameSpeed
+                    and jarak2(serangan.x, serangan.z, bx, bz) < 900^2 and nMenara < (tingkat.menara or 0)
+                    and energiCukup and mampu(menara, .5) then
+                    local x, y, z = cariMenara()
+                    if x then
+                        sp.GiveOrderToUnit(kerja, -menara, {x, y, z, hadap}, 0)
+                        dipesan[menara] = (dipesan[menara] or 0) + 1
+                        selesai = true
+                    end
+                end
                 if not selesai then
                     for _, b in ipairs(rencanaBangun) do
-                        local boleh = not pulih or b.def == pulih or b.def == ekstraktor or b.def == pompa
+                        local boleh = (not pulih or b.def == pulih or b.def == ekstraktor or b.def == pompa)
+                            and (b.def ~= menara or energiCukup)
                         local ada = #sp.GetTeamUnitsByDefs(tim, b.def) + (dipesan[b.def] or 0)
                         if boleh and ada < b.jumlah then
                             if mampu(b.def, .5) then
@@ -403,6 +584,18 @@ local function buatPengendali(tim, rencana)
                             -- kecuali tidak ada tempat (lanjut ke item berikutnya).
                             if selesai or mampu(b.def, .5) == false then break end
                         end
+                    end
+                end
+                -- Pos jaga tambang jauh: mulai menit 5 (atau begitu tambang diserang), kalau energi cukup untuk
+                -- Gardu + menara (2 x 5/detik) dan sumber daya ada.
+                if not selesai and not pulih and (frame > 300 * Game.gameSpeed or next(ladangDiserang))
+                    and (eIn - (eOut or 0)) > 11 and frame - posTerakhir > 40 * Game.gameSpeed then
+                    local def, x, y, z = cariPosLadang(frame)
+                    if def and mampu(def, .5) then
+                        sp.GiveOrderToUnit(kerja, -def, {x, y, z, hadap}, 0)
+                        dipesan[def] = (dipesan[def] or 0) + 1
+                        posTerakhir = frame
+                        selesai = true
                     end
                 end
             end
@@ -748,6 +941,7 @@ local function buatPengendali(tim, rencana)
         if UnitDefs[def].speed == 0 then
             local x, _, z = sp.GetUnitPosition(unit)
             serangan = {x = x, z = z, frame = sp.GetGameFrame()}
+            if def == ekstraktor then ladangDiserang[unit] = serangan end
         end
     end
 
