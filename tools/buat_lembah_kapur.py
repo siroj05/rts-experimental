@@ -437,9 +437,235 @@ def tinggi():
     print("  pratinjau maps/lembah-kapur-tinggi.png")
 
 
+# --- Tahap 3: kompilasi dengan tekstur sementara (tekstur final di tahap 4) ---
+import json
+import shutil
+import struct
+import subprocess
+from zipfile import ZIP_DEFLATED, ZipFile
+
+LOCK = json.loads((ROOT / "dependencies.windows.json").read_text(encoding="utf8"))
+PAKET = {p["nama"]: ROOT / ".deps" / p["folder"] for p in LOCK}
+TEKS = 12288  # 512 piksel per SMU x 24 SMU
+
+
+def rentang(H):
+    return int(math.floor(H.min() * 8)) - 8, int(math.ceil(H.max() * 8)) + 8
+
+
+def pohon(L, H):
+    """Pohon (TreeType0-3 bawaan Recoil) di rumpun hutan: jarak ±5,5 m, tidak di lereng > 28° atau air."""
+    rng = np.random.default_rng(SEED_TERPILIH * 31)
+    gz, gx = np.gradient(H, 1.0)
+    miring = np.degrees(np.arctan(np.hypot(gx, gz)))
+    hasil = []
+    for hx, hz, hr in L.hutan:
+        zz, xx = np.mgrid[hz - hr:hz + hr:5.5, hx - hr:hx + hr:5.5]
+        xx = xx.ravel() + rng.uniform(-1.8, 1.8, xx.size)
+        zz = zz.ravel() + rng.uniform(-1.8, 1.8, zz.size)
+        d = np.hypot(xx - hx, zz - hz) / hr
+        ambil = (d < 1) & (rng.random(xx.size) > _halus((d - .55) / .45))
+        for x, z in zip(xx[ambil], zz[ambil]):
+            i, j = int(round(z)), int(round(x))
+            if 2 <= i < N - 2 and 2 <= j < N - 2 and H[i, j] > .6 and miring[i, j] < 28:
+                hasil.append((round(x * 8), round(z * 8), int(rng.integers(4)), int(rng.integers(-32760, 32760))))
+    return hasil
+
+
+def tekstur_sementara(H, aliran, path):
+    """Warna dasar sederhana dari lereng, tinggi, dan aliran (diganti tekstur final di tahap 4)."""
+    gz, gx = np.gradient(H, 1.0)
+    miring = np.degrees(np.arctan(np.hypot(gx, gz))).astype(np.float32)
+    rng = np.random.default_rng(5)
+    noise = [Image.fromarray(rng.random((n, n)).astype(np.float32), "F") for n in (48, 192, 768)]
+    sumber = [Image.fromarray(a.astype(np.float32), "F") for a in (H.astype(np.float32), miring, aliran)]
+    img = Image.new("RGB", (TEKS, TEKS))
+    band = 512
+    for row in range(0, TEKS, band):
+        def ambil(im, filt=Image.BILINEAR):
+            box = (0, row / TEKS * im.height, im.width, (row + band) / TEKS * im.height)
+            return np.asarray(im.resize((TEKS, band), filt, box), dtype=np.float32)
+        h, m, a = (ambil(im) for im in sumber)
+        n1, n2, n3 = (ambil(im, Image.BICUBIC) - .5 for im in noise)
+        rumput = np.array([62, 84, 44], np.float32) + (n1 * 30 + n2 * 22 + n3 * 14)[..., None]
+        rumput[..., 0] += np.clip(h - 20, 0, 40) * .25
+        tanah = np.array([104, 92, 70], np.float32) + (n2 * 20 + n3 * 14)[..., None]
+        kerikil = np.array([132, 126, 110], np.float32) + (n2 * 18 + n3 * 18)[..., None]
+        batu = np.array([176, 170, 152], np.float32) + (n1 * 18 + n2 * 16 + n3 * 20)[..., None]
+        warna = rumput
+        alur = _halus((a - 4.5 + n2 * 1.5) / 2.5)[..., None]
+        warna = warna + (tanah - warna) * alur * .7
+        k = _halus((m - 14 + n2 * 6) / 8)[..., None]
+        warna = warna + (kerikil - warna) * k
+        b = _halus((m - 27 + n2 * 5) / 6)[..., None]
+        warna = warna + (batu - warna) * b
+        tepi = _halus((1.2 - h) / 1.2)[..., None]
+        warna = warna + (kerikil * .8 - warna) * tepi
+        img.paste(Image.fromarray(np.clip(warna, 0, 255).astype(np.uint8)), (0, row))
+    img.save(path)
+    return img
+
+
+MAPINFO = '''-- Dibuat tools/buat_lembah_kapur.py (seed @SEED@). Aturan: docs/aturan-peta.md.
+return {
+    name = "Limestone Valley 4v4",
+    version = "1.0",
+    description = "Four bases per side behind broken limestone ridges, a winding gravel river and a contested island.",
+    author = "RTS PC",
+    modtype = 3,
+    depend = {"Map Helper v1"},
+    mapfile = "maps/@STEM@.smf",
+    notDeformable = false,
+    gravity = 100,
+    maxMetal = 1.0,
+    extractorRadius = 56,
+    teams = {
+@TIM@
+    },
+    terrainTypes = {
+        [0] = {name = "Meadow", receiveTracks = true, hardness = 1.0},
+        [2] = {name = "Deep River", receiveTracks = false, moveSpeeds = {tank = 0, kbot = 0, hover = 0, ship = 1}},
+    },
+    grass = {bladeHeight = 3.0, bladeWidth = 0.28, bladeWaveScale = 0.8, bladeColor = {0.33, 0.41, 0.24}},
+    lighting = {
+        -- Matahari dari utara, tidak terlalu tinggi (aturan-peta.md bagian 6)
+        sunDir = {-0.32, 0.62, -0.71},
+        groundAmbientColor = {0.34, 0.36, 0.40},
+        groundDiffuseColor = {0.98, 0.91, 0.80},
+        groundSpecularColor = {0.08, 0.08, 0.07},
+        groundShadowDensity = 0.86,
+        unitAmbientColor = {0.38, 0.40, 0.45},
+        unitDiffuseColor = {1.00, 0.95, 0.86},
+        unitSpecularColor = {0.55, 0.53, 0.50},
+        unitShadowDensity = 0.86,
+    },
+    atmosphere = {
+        fogStart = 0.32, fogEnd = 1.0, fogColor = {0.60, 0.65, 0.70},
+        skyColor = {0.40, 0.53, 0.68}, sunColor = {1.0, 0.92, 0.80}, minWind = 5, maxWind = 12,
+    },
+    water = {
+        surfaceColor = {0.30, 0.44, 0.40}, surfaceAlpha = .55,
+        baseColor = {0.12, 0.22, 0.19}, minColor = {0.06, 0.13, 0.12},
+        absorb = {0.019, 0.011, 0.007}, specularFactor = 32,
+    },
+    smf = {minheight = @RENDAH@, maxheight = @TINGGI@},
+}
+'''
+
+SKENARIO = '''-- Limestone Valley 4v4 (dibuat tools/buat_lembah_kapur.py, seed @SEED@). Deathmatch dulu (keputusan user
+-- 2026-11-26); titik A-C (dua arung + pulau) disiapkan untuk mode Control Points.
+local skenario = {
+    startScript = "gamedata/skenario/kapur-start.txt",
+    radius = 88, detikRebut = 4, poinPerDetik = 1, targetSkor = 2400,
+    titik = {
+@TITIK@
+    },
+    ladang = {@LADANG@},
+    awal = {
+@AWAL@
+    },
+}
+return skenario
+'''
+
+
+def tulis_mapinfo(L, rendah, tinggi_):
+    tim = "\n".join(f"        [{i}] = {{startPos = {{x = {round(x * 8)}, z = {round(z * 8)}}}}},"
+                    for i, (x, z) in enumerate(L.markas))
+    teks = (MAPINFO.replace("@SEED@", str(L.seed)).replace("@STEM@", STEM).replace("@TIM@", tim)
+            .replace("@RENDAH@", str(rendah)).replace("@TINGGI@", str(tinggi_)))
+    (ROOT / f"maps/mapinfo-{STEM}.lua").write_text(teks, encoding="utf-8")
+
+
+def tulis_skenario(L):
+    awal = []
+    for i, (x, z) in enumerate(L.markas):
+        barat = i < 4
+        s = 1 if barat else -1
+        awal.append(f"        {{pos = {{{round(x * 8)}, {round(z * 8)}}}, hadap = {1 if barat else 3}, "
+                    f"insinyur = {{{116 * s}, {65 * s}}}, kamera = {{{65 * s}, {30 * s}}}, tank = {{{170 * s}, {-86 * s}}}}},")
+    ladang = ", ".join(f"{{{round(x * 8)}, {round(z * 8)}}}" for x, z in L.tambang)
+    a0, a1 = L.arung[0][0], L.arung[2][0]
+    titik = "\n".join([
+        f'        {{nama = "A", x = {round(L.sungai_x(a0) * 8)}, z = {round(a0 * 8)}}},',
+        f'        {{nama = "B", x = {round(TENGAH * 8)}, z = {round(TENGAH * 8)}}},',
+        f'        {{nama = "C", x = {round(L.sungai_x(UKURAN - a0) * 8)}, z = {round((UKURAN - a0) * 8)}}},'])
+    teks = (SKENARIO.replace("@SEED@", str(L.seed)).replace("@TITIK@", titik).replace("@LADANG@", ladang)
+            .replace("@AWAL@", "\n".join(awal)))
+    (ROOT / "game/RTSPC.sdd/gamedata/skenario/kapur.lua").write_text(teks, encoding="utf-8")
+    start = (ROOT / "game/RTSPC.sdd/gamedata/skenario/hijau-start.txt").read_text(encoding="utf-8")
+    start = start.replace("Verdant Ridge 4v4 1.0", "Limestone Valley 4v4 1.0").replace("skenario=hijau", "skenario=kapur")
+    (ROOT / "game/RTSPC.sdd/gamedata/skenario/kapur-start.txt").write_text(start, encoding="utf-8")
+
+
+def siapkan():
+    t0 = time.time()
+    L = Layout(SEED_TERPILIH)
+    H = np.load(WORK / "tinggi.npy").astype(np.float64)
+    aliran = np.load(WORK / "aliran.npy")
+    rendah, tinggi_ = rentang(H)
+    raw = np.rint((H * 8 - rendah) * 65535 / (tinggi_ - rendah)).astype("<u2")
+    raw.tofile(WORK / "tinggi.raw")
+    h2 = H[1::2, 1::2][:768, :768]
+    Image.fromarray(np.where(h2 < -.3, 2, 0).astype(np.uint8)).convert("RGB").save(WORK / "tipe.bmp")
+    besi = np.zeros((768, 768), np.uint8)
+    zz, xx = np.mgrid[0:768, 0:768] * 2 + 1
+    for x, z in L.tambang:
+        besi[np.hypot(xx - x, zz - z) < 4] = 240
+    Image.fromarray(besi).convert("RGB").save(WORK / "besi.bmp")
+    g2 = H[2::4, 2::4][:384, :384]
+    gz, gx = np.gradient(g2, 4.0)
+    rumput = ((g2 > 1) & (np.degrees(np.arctan(np.hypot(gx, gz))) < 16)).astype(np.uint8)
+    Image.fromarray(rumput).save(WORK / "rumput.bmp")
+    pohon_ = pohon(L, H)
+    (WORK / "pohon.lua").write_text("".join(
+        f"{{name='TreeType{k}', x={a}, z={b}, rot={r}, scale=1.0}}\n" for a, b, k, r in pohon_), encoding="ascii")
+    img = tekstur_sementara(H, naik(aliran, N), WORK / "warna.bmp")
+    img.resize((1024, 1024), Image.LANCZOS).save(WORK / "minimap.bmp")
+    tulis_mapinfo(L, rendah, tinggi_)
+    tulis_skenario(L)
+    print(f"siapkan: {len(pohon_)} pohon, tinggi {rendah}..{tinggi_} elmo, {time.time() - t0:.0f} s")
+
+
+def kompilasi():
+    t0 = time.time()
+    compiler = PAKET["PyMapConv"]
+    (WORK / "resources").mkdir(exist_ok=True)
+    for sumber in ("nvdxt.exe", "resources/geovent.bmp"):
+        shutil.copy2(compiler / sumber, WORK / sumber)
+    H = np.load(WORK / "tinggi.npy")
+    rendah, tinggi_ = rentang(H)
+    smf, smt = [WORK / f"{STEM}.{e}" for e in ("smf", "smt")]
+    for p in (smf, smt):
+        p.unlink(missing_ok=True)
+    # pymapconv memanggil nvdxt.exe lewat cmd; pastikan folder kerja ada di PATH (cmd tidak selalu mencari di cwd).
+    import os
+    env = dict(os.environ)
+    env.pop("NoDefaultCurrentDirectoryInExePath", None)
+    env["PATH"] = str(WORK) + os.pathsep + env.get("PATH", "")
+    with (WORK / "kompilasi.log").open("wb") as log:
+        subprocess.run([compiler / "pymapconv.exe", "-t", "warna.bmp", "-a", "tinggi.raw", "-y", "tipe.bmp", "-m",
+                        "besi.bmp", "-k", "pohon.lua", "-r", "rumput.bmp", "-p", "minimap.bmp", "-o", smf.name,
+                        "-n", str(rendah), "-x", str(tinggi_), "-q", "1"],
+                       cwd=WORK, stdout=log, stderr=subprocess.STDOUT, timeout=3600, env=env,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+    assert "All Done!" in (WORK / "kompilasi.log").read_text(errors="replace"), "kompilasi gagal, lihat kompilasi.log"
+    with smf.open("rb") as f:
+        magic, versi, _, sx, sz = struct.unpack("<16siiii", f.read(32))
+    assert (magic.rstrip(b"\0"), versi, sx, sz) == (b"spring map file", 1, TEKS // 8, TEKS // 8), (magic, sx, sz)
+    out = WORK / f"{STEM}.sdz"
+    with ZipFile(out, "w", ZIP_DEFLATED) as z:
+        z.write(ROOT / f"maps/mapinfo-{STEM}.lua", "mapinfo.lua")
+        for p in (smf, smt):
+            z.write(p, "maps/" + p.name)
+    out.replace(ROOT / "maps" / out.name)
+    print(f"kompilasi: maps/{STEM}.sdz {(ROOT / 'maps' / out.name).stat().st_size / 1e6:.0f} MB, "
+          f"{time.time() - t0:.0f} s")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("tahap", choices=["tinggi"])
+    ap.add_argument("tahap", choices=["tinggi", "siapkan", "kompilasi"])
     a = ap.parse_args()
-    if a.tahap == "tinggi":
-        tinggi()
+    {"tinggi": tinggi, "siapkan": siapkan, "kompilasi": kompilasi}[a.tahap]()
+

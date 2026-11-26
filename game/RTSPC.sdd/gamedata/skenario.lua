@@ -5,6 +5,7 @@ local berkas = {
     sungai = {"River Valley 1v1 1.0", "gamedata/skenario/sungai.lua"},
     pinus = {"Pine Crossing 4v4 1.0", "gamedata/skenario/pinus.lua"},
     hijau = {"Verdant Ridge 4v4 1.0", "gamedata/skenario/hijau.lua"},
+    kapur = {"Limestone Valley 4v4 1.0", "gamedata/skenario/kapur.lua"},
 }
 local pilihan = berkas[opsi.skenario]
 if not pilihan or Game.mapName ~= pilihan[1] then return nil end

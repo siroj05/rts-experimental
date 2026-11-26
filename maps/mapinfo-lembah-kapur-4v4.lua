@@ -1,0 +1,51 @@
+-- Dibuat tools/buat_lembah_kapur.py (seed 1). Aturan: docs/aturan-peta.md.
+return {
+    name = "Limestone Valley 4v4",
+    version = "1.0",
+    description = "Four bases per side behind broken limestone ridges, a winding gravel river and a contested island.",
+    author = "RTS PC",
+    modtype = 3,
+    depend = {"Map Helper v1"},
+    mapfile = "maps/lembah-kapur-4v4.smf",
+    notDeformable = false,
+    gravity = 100,
+    maxMetal = 1.0,
+    extractorRadius = 56,
+    teams = {
+        [0] = {startPos = {x = 1197, z = 1680}},
+        [1] = {startPos = {x = 1707, z = 4156}},
+        [2] = {startPos = {x = 1615, z = 6515}},
+        [3] = {startPos = {x = 1389, z = 9724}},
+        [4] = {startPos = {x = 11091, z = 10608}},
+        [5] = {startPos = {x = 10581, z = 8132}},
+        [6] = {startPos = {x = 10673, z = 5773}},
+        [7] = {startPos = {x = 10899, z = 2564}},
+    },
+    terrainTypes = {
+        [0] = {name = "Meadow", receiveTracks = true, hardness = 1.0},
+        [2] = {name = "Deep River", receiveTracks = false, moveSpeeds = {tank = 0, kbot = 0, hover = 0, ship = 1}},
+    },
+    grass = {bladeHeight = 3.0, bladeWidth = 0.28, bladeWaveScale = 0.8, bladeColor = {0.33, 0.41, 0.24}},
+    lighting = {
+        -- Matahari dari utara, tidak terlalu tinggi (aturan-peta.md bagian 6)
+        sunDir = {-0.32, 0.62, -0.71},
+        groundAmbientColor = {0.34, 0.36, 0.40},
+        groundDiffuseColor = {0.98, 0.91, 0.80},
+        groundSpecularColor = {0.08, 0.08, 0.07},
+        groundShadowDensity = 0.86,
+        unitAmbientColor = {0.38, 0.40, 0.45},
+        unitDiffuseColor = {1.00, 0.95, 0.86},
+        unitSpecularColor = {0.55, 0.53, 0.50},
+        unitShadowDensity = 0.86,
+    },
+    atmosphere = {
+        fogStart = 0.32, fogEnd = 1.0, fogColor = {0.60, 0.65, 0.70},
+        skyColor = {0.40, 0.53, 0.68}, sunColor = {1.0, 0.92, 0.80}, minWind = 5, maxWind = 12,
+    },
+    water = {
+        surfaceColor = {0.30, 0.44, 0.40}, surfaceAlpha = .55,
+        baseColor = {0.12, 0.22, 0.19}, minColor = {0.06, 0.13, 0.12},
+        absorb = {0.019, 0.011, 0.007}, specularFactor = 32,
+    },
+    smf = {minheight = -28, maxheight = 857},
+}
