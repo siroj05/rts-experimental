@@ -48,4 +48,9 @@ return {
         absorb = {0.019, 0.011, 0.007}, specularFactor = 32,
     },
     smf = {minheight = -28, maxheight = 857},
+    resources = {
+        -- Tahap 4: normal detail ruang tangen (A = kekuatan) dan specular (A x 16 = eksponen)
+        detailNormalTex = "normal_detail.dds",
+        specularTex = "spekular.dds",
+    },
 }

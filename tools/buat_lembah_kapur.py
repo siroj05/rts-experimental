@@ -549,6 +549,11 @@ return {
         absorb = {0.019, 0.011, 0.007}, specularFactor = 32,
     },
     smf = {minheight = @RENDAH@, maxheight = @TINGGI@},
+    resources = {
+        -- Tahap 4: normal detail ruang tangen (A = kekuatan) dan specular (A x 16 = eksponen)
+        detailNormalTex = "normal_detail.dds",
+        specularTex = "spekular.dds",
+    },
 }
 '''
 
@@ -615,8 +620,10 @@ def siapkan():
     Image.fromarray(besi).convert("RGB").save(WORK / "besi.bmp")
     g2 = H[2::4, 2::4][:384, :384]
     gz, gx = np.gradient(g2, 4.0)
-    rumput = ((g2 > 1) & (np.degrees(np.arctan(np.hypot(gx, gz))) < 16)).astype(np.uint8)
-    Image.fromarray(rumput).save(WORK / "rumput.bmp")
+    # Rumput engine dimatikan (user 2026-11-26: "bisa di hapus rumputnya ngga?"): grass map kosong, detail tanah
+    # ditanggung tekstur warna + normal detail.
+    rumput = np.zeros(g2.shape, np.uint8)
+    Image.fromarray(rumput).convert("RGB").save(WORK / "rumput.bmp")
     pohon_ = pohon(L, H)
     (WORK / "pohon.lua").write_text("".join(
         f"{{name='TreeType{k}', x={a}, z={b}, rot={r}, scale=1.0}}\n" for a, b, k, r in pohon_), encoding="ascii")
@@ -658,14 +665,62 @@ def kompilasi():
         z.write(ROOT / f"maps/mapinfo-{STEM}.lua", "mapinfo.lua")
         for p in (smf, smt):
             z.write(p, "maps/" + p.name)
+        for nama in ("normal_detail.dds", "spekular.dds"):
+            if (WORK / nama).exists():
+                z.write(WORK / nama, "maps/" + nama)
     out.replace(ROOT / "maps" / out.name)
     print(f"kompilasi: maps/{STEM}.sdz {(ROOT / 'maps' / out.name).stat().st_size / 1e6:.0f} MB, "
           f"{time.time() - t0:.0f} s")
 
 
+# --- Tahap 4: tekstur warna final, normal map detail, specular (tools/tekstur_lembah_kapur.py) ---
+def dds(png, keluar, format_):
+    """PNG -> DDS dengan nvdxt (mipmap penuh)."""
+    import os
+    env = dict(os.environ)
+    env.pop("NoDefaultCurrentDirectoryInExePath", None)
+    shutil.copy2(PAKET["PyMapConv"] / "nvdxt.exe", WORK / "nvdxt.exe")
+    subprocess.run([str(WORK / "nvdxt.exe"), "-file", png.name, format_, "-output", keluar.name, "-quality_production"],
+                   cwd=WORK, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=3600,
+                   creationflags=subprocess.CREATE_NO_WINDOW)
+    assert keluar.exists(), f"nvdxt gagal untuk {png.name}"
+
+
+def tekstur():
+    import tekstur_lembah_kapur as T
+    t0 = time.time()
+    L = Layout(SEED_TERPILIH)
+    H = np.load(WORK / "tinggi.npy").astype(np.float64)
+    aliran = naik(np.load(WORK / "aliran.npy"), N)
+    endapan = naik(np.load(WORK / "endapan.npy"), N)
+    T.buat_semua(H, aliran, endapan, L, UKURAN, WORK / "warna.bmp", WORK / "normal_detail.png", WORK / "spekular.png",
+                 cetak=lambda t: print(t, flush=True))
+    Image.open(WORK / "warna.bmp").resize((1024, 1024), Image.LANCZOS).save(WORK / "minimap.bmp")
+    # nvdxt (32-bit) crash pada 8192^2; pakai encoder BC3 sendiri (tools/dds_bc3.py)
+    from dds_bc3 import simpan_bc3
+    for nama in ("normal_detail", "spekular"):
+        simpan_bc3(np.asarray(Image.open(WORK / f"{nama}.png")), WORK / f"{nama}.dds")
+    print(f"tekstur: {time.time() - t0:.0f} s")
+
+
+def paket():
+    """Tulis ulang mapinfo lalu bungkus ulang .sdz dari .smf/.smt/.dds yang sudah ada (tanpa kompilasi ulang)."""
+    L = Layout(SEED_TERPILIH)
+    rendah, tinggi_ = rentang(np.load(WORK / "tinggi.npy"))
+    tulis_mapinfo(L, rendah, tinggi_)
+    out = WORK / f"{STEM}.sdz"
+    with ZipFile(out, "w", ZIP_DEFLATED) as z:
+        z.write(ROOT / f"maps/mapinfo-{STEM}.lua", "mapinfo.lua")
+        for nama in (f"{STEM}.smf", f"{STEM}.smt", "normal_detail.dds", "spekular.dds"):
+            if (WORK / nama).exists():
+                z.write(WORK / nama, "maps/" + nama)
+    out.replace(ROOT / "maps" / out.name)
+    print(f"paket: maps/{STEM}.sdz {(ROOT / 'maps' / out.name).stat().st_size / 1e6:.0f} MB")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("tahap", choices=["tinggi", "siapkan", "kompilasi"])
+    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "kompilasi", "paket"])
     a = ap.parse_args()
-    {"tinggi": tinggi, "siapkan": siapkan, "kompilasi": kompilasi}[a.tahap]()
+    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "kompilasi": kompilasi, "paket": paket}[a.tahap]()
 
