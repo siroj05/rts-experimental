@@ -52,12 +52,36 @@ Contoh penerapan: Limestone Valley 4v4 (`tools/lembah_kapur_layout.py`, `maps/le
 - Pohon tunggal tidak berharga untuk di-reclaim (FAF). Kalau objek punya nilai reclaim, nilainya diatur sama untuk kedua kubu.
 - Objek peta tidak boleh memakai tinggi Y tetap, karena bisa melayang kalau tinggi air atau medan berubah (BAR).
 - Semua model buatan sendiri, 600–6.000 segitiga per model, 3 varian per jenis.
+- ✅ 2026-11-26 (user): "pohon dan batu pakai punya recoil". Pohon memakai cemara bawaan Recoil
+  (`fir_tree_*.s3o` di `springcontent.sdz`, didaftarkan lewat `features/treetype.lua` di `gamedata/defs.lua`).
+  Konten bawaan Recoil 2026.09.03 tidak menyertakan model batu.
 
 ## 6. Cahaya dan suasana
 
 - Matahari dari sisi **utara** peta, tidak terlalu tinggi atau rendah, supaya bayangan membantu mengenali unit. Peta sedikit digelapkan, jangan terang penuh (BAR).
 - Arah visual proyek: natural dan dramatis (kontras, kabut atmosfer, cahaya hangat dan dingin).
 - Kepadatan kabut dicek dari zoom jauh (BAR).
+- 🟡 2026-11-26 (Limestone Valley): skybox cubemap buatan sendiri (`tools/buat_langit.py`), dengan gradasi langit,
+  silau ke arah `sunDir`, awan, dan dua lapis pegunungan di cakrawala. `fogColor` disamakan dengan kabut cakrawala
+  skybox. `water.hasWaterPlane = false` supaya area di luar tepi peta menampilkan kabut skybox, bukan bidang air.
+- Ambient dan bayangan dibuat sejuk kebiruan, matahari hangat.
+
+## 6a. Bekas pertempuran
+
+- ✅ 2026-11-26 (user): "permukaan yang diatasnya ada bangunan dia ada tapaknya tanah, terus map bisa berlubang
+  permanen jika terkena tembakan atau ledakan".
+- **Tapak bangunan**: decal tanah padat (`useBuildingGroundDecal`). Ukurannya tapak bangunan ditambah satu petak
+  di tiap sisi. Diatur di `gamedata/defs.lua`, teksturnya dari `tools/buat_decal.py`.
+- **Kawah permanen**: deformasi heightmap Recoil (`craterMult`, `craterAreaOfEffect`). Peta wajib
+  `notDeformable = false`. Senjata kecil tidak membuat kawah. Kedalaman per peluru dari hasil ukur: Light 0,25 m,
+  Medium 0,4 m, Destroyer 0,55 m, Rocket 0,1–0,25 m. Lima peluru artileri di titik yang sama menggali ±1,9 m.
+- **Bekas kawah**: decal Lua permanen dari gadget `kawah_bekas.lua`. Bekas ledakan bawaan (`explosionScar`) tidak
+  dipakai, karena shader Recoil mengalikan warnanya dengan minimap, jadi tanah cokelat di atas rumput berubah
+  menjadi hijau gelap. Bekas yang terjadi di luar pandangan baru ditempel saat lokasinya terlihat oleh tim.
+- **Jebakan teknis**:
+  - Kunci def ditulis `buildingGroundDecal*`, tetapi di `UnitDefs` Lua namanya jadi `buildingDecal*`.
+  - Gadget handler berhenti di gadget pertama yang `Explosion`-nya mengembalikan `true`. Gadget kawah memakai
+    layer -10 supaya selalu jalan duluan.
 
 ## 7. Teknik pembuatan (pipeline)
 
@@ -74,7 +98,7 @@ Semua lapisan dibuat oleh generator Python per peta (`tools/buat_<stem>.py`), la
 | Metal map | sesuai PyMapConv | BMP | Titik tambang dari modul layout. |
 | Type map, grass map | 16·X × 16·Z | BMP | Jenis tanah dan kepadatan rumput. |
 | Minimap | 1024 × 1024 | BMP | |
-| Skybox | ±2K per sisi | cubemap DDS | |
+| Skybox | ±1–2K per sisi | cubemap DDS (BC3) | `tools/buat_langit.py` + `dds_bc3.simpan_bc3_kubus`. Urutan sisi OpenGL, utara = -z. |
 
 Urutan kerja per peta, dan tiap tahap dicek sebelum lanjut:
 

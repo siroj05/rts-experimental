@@ -528,25 +528,38 @@ return {
     },
     grass = {bladeHeight = 3.0, bladeWidth = 0.28, bladeWaveScale = 0.8, bladeColor = {0.33, 0.41, 0.24}},
     lighting = {
-        -- Matahari dari utara, tidak terlalu tinggi (aturan-peta.md bagian 6)
+        -- Matahari dari utara, elevasi ±38° (aturan-peta.md bagian 6). Tahap 6: matahari hangat, bayangan dan
+        -- ambient sejuk kebiruan supaya kontras (arah visual natural dan dramatis).
         sunDir = {-0.32, 0.62, -0.71},
-        groundAmbientColor = {0.34, 0.36, 0.40},
-        groundDiffuseColor = {0.98, 0.91, 0.80},
-        groundSpecularColor = {0.08, 0.08, 0.07},
-        groundShadowDensity = 0.86,
-        unitAmbientColor = {0.38, 0.40, 0.45},
-        unitDiffuseColor = {1.00, 0.95, 0.86},
+        groundAmbientColor = {0.29, 0.33, 0.41},
+        groundDiffuseColor = {1.00, 0.92, 0.77},
+        groundSpecularColor = {0.10, 0.09, 0.08},
+        groundShadowDensity = 0.90,
+        unitAmbientColor = {0.33, 0.37, 0.45},
+        unitDiffuseColor = {1.00, 0.94, 0.82},
         unitSpecularColor = {0.55, 0.53, 0.50},
-        unitShadowDensity = 0.86,
+        unitShadowDensity = 0.88,
     },
     atmosphere = {
-        fogStart = 0.32, fogEnd = 1.0, fogColor = {0.60, 0.65, 0.70},
-        skyColor = {0.40, 0.53, 0.68}, sunColor = {1.0, 0.92, 0.80}, minWind = 5, maxWind = 12,
+        -- Skybox buatan sendiri (tools/buat_langit.py). Warna kabut = kabut cakrawala skybox.
+        skyBox = "langit.dds",
+        fogStart = 0.30, fogEnd = 1.0, fogColor = {0.69, 0.75, 0.80},
+        skyColor = {0.45, 0.58, 0.76}, sunColor = {1.0, 0.92, 0.78}, minWind = 5, maxWind = 12,
+        cloudDensity = 0.0,
     },
     water = {
-        surfaceColor = {0.30, 0.44, 0.40}, surfaceAlpha = .55,
-        baseColor = {0.12, 0.22, 0.19}, minColor = {0.06, 0.13, 0.12},
-        absorb = {0.019, 0.011, 0.007}, specularFactor = 32,
+        -- Sungai pegunungan: hijau toska jernih. Penyerapan rendah supaya dasar kerikil di dangkalan terlihat.
+        surfaceColor = {0.50, 0.66, 0.62}, surfaceAlpha = 0.32,
+        -- Tanpa bidang air tak hingga: di luar tepi peta yang terlihat adalah kabut bawah skybox.
+        hasWaterPlane = false,
+        baseColor = {0.40, 0.49, 0.43}, minColor = {0.09, 0.17, 0.17},
+        absorb = {0.0105, 0.0068, 0.0058},
+        diffuseColor = {0.85, 0.92, 0.88}, diffuseFactor = 1.0,
+        specularColor = {1.0, 0.95, 0.85}, specularPower = 48, specularFactor = 0.55,
+        fresnelMin = 0.12, fresnelMax = 0.55, fresnelPower = 4.0,
+        reflectionDistortion = 0.7, blurBase = 2.0, blurExponent = 1.5,
+        perlinStartFreq = 10.0, perlinLacunarity = 2.6, perlinAmplitude = 0.55,
+        shoreWaves = false,
     },
     smf = {minheight = @RENDAH@, maxheight = @TINGGI@},
     resources = {
@@ -753,6 +766,14 @@ def dnts():
           f"kerikil {100 * (kerikil > .5).mean():.0f}%, batu {100 * (batu > .5).mean():.0f}%), {time.time() - t0:.0f} s")
 
 
+# --- Tahap 6: langit (tools/buat_langit.py); cahaya, kabut, dan air ada di MAPINFO ---
+def langit():
+    from buat_langit import buat_langit
+    t0 = time.time()
+    buat_langit(WORK / "langit.dds", (-0.32, 0.62, -0.71), seed=SEED_TERPILIH, pratinjau=WORK / "langit.png")
+    print(f"langit: {WORK / 'langit.dds'} {(WORK / 'langit.dds').stat().st_size / 1e6:.1f} MB, {time.time() - t0:.0f} s")
+
+
 def paket():
     """Tulis ulang mapinfo lalu bungkus ulang .sdz dari .smf/.smt/.dds yang sudah ada (tanpa kompilasi ulang)."""
     L = Layout(SEED_TERPILIH)
@@ -762,7 +783,7 @@ def paket():
     with ZipFile(out, "w", ZIP_DEFLATED) as z:
         z.write(ROOT / f"maps/mapinfo-{STEM}.lua", "mapinfo.lua")
         for nama in (f"{STEM}.smf", f"{STEM}.smt", "normal_detail.dds", "spekular.dds", "splat_campur.tga",
-                     *(f"dnts_{d}.tga" for d in DNTS)):
+                     *(f"dnts_{d}.tga" for d in DNTS), "langit.dds"):
             if (WORK / nama).exists():
                 z.write(WORK / nama, "maps/" + nama)
     out.replace(ROOT / "maps" / out.name)
@@ -771,8 +792,8 @@ def paket():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "dnts", "kompilasi", "paket"])
+    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "dnts", "langit", "kompilasi", "paket"])
     a = ap.parse_args()
-    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "dnts": dnts, "kompilasi": kompilasi,
-     "paket": paket}[a.tahap]()
+    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "dnts": dnts, "langit": langit,
+     "kompilasi": kompilasi, "paket": paket}[a.tahap]()
 

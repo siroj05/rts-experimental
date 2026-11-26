@@ -43,6 +43,8 @@ local function arahKamera(shot)
     s.px, s.py, s.pz = x, Spring.GetGroundHeight(x, z), z
     if s.dist then s.dist = shot.jarak end
     if s.height then s.height = shot.jarak end
+    if shot.rx and s.rx then s.rx = shot.rx end
+    if shot.ry and s.ry then s.ry = shot.ry end
     Spring.SetCameraState(s, 0)
     return info
 end

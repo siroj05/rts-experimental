@@ -20,7 +20,7 @@ movement[#movement + 1] =
     {name = "robot_kerja", footprintx = 1, footprintz = 1, speedmodclass = 1, maxslope = 28, maxwaterdepth = 0}
 
 local skenario = Spring.GetModOptions().skenario
-if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" then
+if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" or skenario == "kapur" then
     -- Arsip dasar memberi nama treetype0…15 dalam huruf kecil.
     local env = {lowerkeys = function(defs) return defs end}
     for name, def in pairs(VFS.Include("features/treetype.lua", env, VFS.BASE)) do
@@ -37,13 +37,40 @@ if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" then
         unit.trackWidth, unit.trackStrength, unit.trackStretch = lebar, 12, 1
     end
 
-    for nama, diameter in pairs({rts_meriam_medium = 46, rts_tank_ringan = 34,
-            rts_medium_tank_destroyer = 51, rts_artileri_ringan = 70,
-            rts_robot_roket = 26, rts_meriam_menara = 37}) do
+    -- Bekas kawah: decal Lua permanen dari gadget kawah_bekas.lua. Bekas ledakan bawaan dimatikan karena
+    -- warnanya dikalikan minimap. Ukuran (elmo) = diameter kawah x ±2,2, termasuk tanah yang terlempar.
+    for nama, diameter in pairs({rts_meriam_medium = 62, rts_tank_ringan = 48,
+            rts_medium_tank_destroyer = 66, rts_artileri_ringan = 106,
+            rts_robot_roket = 44, rts_meriam_menara = 48}) do
         local weapon = weapons[nama]
-        weapon.explosionScar = true
-        weapon.scarDiameter, weapon.scarAlpha, weapon.scarTtl = diameter, .86, 140
+        weapon.explosionScar = false
+        weapon.customparams = weapon.customparams or {}
+        weapon.customparams.kawah_ukuran = diameter
     end
+end
+
+-- Kawah permanen (✅ user 2026-11-26: "map bisa berlubang permanen jika terkena tembakan atau ledakan").
+-- Recoil mengubah heightmap secara permanen. Peta mengaktifkannya dengan notDeformable = false.
+-- Senjata kecil tidak membuat kawah. Nilai {diameter elmo, pengali kedalaman} disetel lewat pengukuran
+-- (🟡 tahap 6 Limestone Valley).
+-- Target kedalaman: Light 0,25 m, Medium 0,4, Destroyer 0,55, Rocket 0,25, Artillery 0,7, Tower 0,2 per peluru.
+-- Kedalaman Recoil sebanding dengan (damage x mult)^0,6, jadi pengali disetel dari hasil ukur uji kawah.
+for nama, k in pairs({rts_meriam_medium = {28, 3.2}, rts_tank_ringan = {22, 5.5},
+        rts_medium_tank_destroyer = {30, 1.3}, rts_artileri_ringan = {48, 10},
+        rts_robot_roket = {20, 2.1}, rts_meriam_menara = {22, 3}}) do
+    local weapon = weapons[nama]
+    weapon.craterareaofeffect, weapon.cratermult, weapon.craterboost = k[1], k[2], 0
+end
+
+-- Tapak tanah di bawah bangunan (✅ user 2026-11-26). Tekstur dari tools/buat_decal.py. Ukurannya tapak ditambah
+-- 2 m (satu petak) di tiap sisi.
+for _, key in ipairs(fraksi.armor.bangunan) do
+    local unit = units[key]
+    -- Kunci def: buildingGroundDecal*. Di UnitDefs Lua namanya jadi buildingDecal*.
+    unit.useBuildingGroundDecal, unit.buildingGroundDecalType = true, "tapak_tanah.tga"
+    unit.buildingGroundDecalSizeX = unit.footprintx + 2
+    unit.buildingGroundDecalSizeY = unit.footprintz + 2
+    unit.buildingGroundDecalDecaySpeed = .02
 end
 
 -- Ikon strategis zoom jauh (tools/buat_ikon.py, gamedata/icontypes.lua).

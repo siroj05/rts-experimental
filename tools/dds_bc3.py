@@ -4,8 +4,9 @@ Dipakai karena nvdxt.exe (32-bit) crash kehabisan memori pada tekstur 8192 x 819
 Warna: endpoint = min/maks per kanal di blok 4x4 (bounding box), indeks = proyeksi ke garis endpoint (4 tingkat).
 Alpha: endpoint min/maks, 8 tingkat interpolasi. Kualitas cukup untuk normal detail dan specular.
 
-    from dds_bc3 import simpan_bc3
+    from dds_bc3 import simpan_bc3, simpan_bc3_kubus
     simpan_bc3(array_rgba_uint8, "keluar.dds")
+    simpan_bc3_kubus([px, nx, py, ny, pz, nz], "langit.dds")   # cubemap (skybox)
 """
 import struct
 
@@ -79,7 +80,7 @@ def _kode_bc3(rgba):
     return out.astype("<u8").tobytes()
 
 
-def simpan_bc3(rgba, path, pita=1024):
+def _mip(rgba):
     rgba = np.asarray(rgba, np.uint8)
     h, w = rgba.shape[:2]
     assert h % 4 == 0 and w % 4 == 0
@@ -98,15 +99,34 @@ def simpan_bc3(rgba, path, pita=1024):
         if lw == 1 and lh == 1:
             break
         lw, lh = max(1, lw // 2), max(1, lh // 2)
+    return level
+
+
+def _tulis(path, gambar, kubus, pita):
+    h, w = gambar[0].shape[:2]
+    level = [_mip(g) for g in gambar]
     with open(path, "wb") as f:
         DDSD_CAPS, DDSD_HEIGHT, DDSD_WIDTH, DDSD_PIXELFORMAT, DDSD_MIPMAPCOUNT, DDSD_LINEARSIZE = (
             0x1, 0x2, 0x4, 0x1000, 0x20000, 0x80000)
         flags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT | DDSD_MIPMAPCOUNT | DDSD_LINEARSIZE
         linear = (w // 4) * (h // 4) * 16
         pf = struct.pack("<II4sIIIII", 32, 0x4, b"DXT5", 0, 0, 0, 0, 0)
-        caps = struct.pack("<IIII", 0x1000 | 0x400000 | 0x8, 0, 0, 0)
-        header = struct.pack("<4sIIIIIII", b"DDS ", 124, flags, h, w, linear, 0, len(level)) + b"\0" * 44 + pf + caps + b"\0" * 4
+        # caps2: DDSCAPS2_CUBEMAP + keenam sisi (+X -X +Y -Y +Z -Z), urutan data per sisi lengkap dengan mipnya
+        caps = struct.pack("<IIII", 0x1000 | 0x400000 | 0x8, 0xFE00 if kubus else 0, 0, 0)
+        header = (struct.pack("<4sIIIIIII", b"DDS ", 124, flags, h, w, linear, 0, len(level[0])) + b"\0" * 44 + pf
+                  + caps + b"\0" * 4)
         f.write(header)
-        for a in level:
-            for r in range(0, a.shape[0], pita):
-                f.write(_kode_bc3(a[r:r + pita]))
+        for sisi in level:
+            for a in sisi:
+                for r in range(0, a.shape[0], pita):
+                    f.write(_kode_bc3(a[r:r + pita]))
+
+
+def simpan_bc3(rgba, path, pita=1024):
+    _tulis(path, [rgba], False, pita)
+
+
+def simpan_bc3_kubus(sisi, path, pita=1024):
+    """Cubemap: daftar 6 gambar RGBA persegi dengan urutan OpenGL +X, -X, +Y, -Y, +Z, -Z."""
+    assert len(sisi) == 6
+    _tulis(path, sisi, True, pita)

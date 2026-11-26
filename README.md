@@ -124,7 +124,9 @@ Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. A
 
 `sounds/unit-hancur-v2.ogg` berasal dari `Assets/Konten/Suara/Kandidat/244394.mp3` di V2, [Bang/Explosion Metallic](https://freesound.org/people/Werra/sounds/244394/) oleh Werra, CC0. Dipotong sampai 3 detik dengan pudar 80 ms mengikuti durasi di V2. Ini suara kandidat yang sudah dipakai sementara di V2.
 
-Konstruksi dan reklamasi memakai visual Recoil. Shockwave dan kawah permanen belum aktif di V2.
+Konstruksi dan reklamasi memakai visual Recoil. Shockwave belum aktif.
+
+Bangunan berdiri di atas tapak tanah padat (decal `tools/buat_decal.py`). Peluru berat menggali kawah permanen di peta yang bisa dideformasi (Limestone Valley, Verdant Ridge). Kedalamannya 0,25–0,55 m per peluru, dan senjata kecil tidak membuat kawah. Gadget `kawah_bekas.lua` menempelkan bekas tanah teraduk yang tidak memudar.
 
 ### Suara mesin kendaraan
 
