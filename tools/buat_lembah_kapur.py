@@ -553,6 +553,17 @@ return {
         -- Tahap 4: normal detail ruang tangen (A = kekuatan) dan specular (A x 16 = eksponen)
         detailNormalTex = "normal_detail.dds",
         specularTex = "spekular.dds",
+        -- Tahap 5: DNTS (R rumput, G tanah, B kerikil, A batu); A ubin = detail terang-gelap
+        splatDistrTex = "splat_campur.tga",
+        splatDetailNormalTex1 = "dnts_rumput.tga",
+        splatDetailNormalTex2 = "dnts_tanah.tga",
+        splatDetailNormalTex3 = "dnts_kerikil.tga",
+        splatDetailNormalTex4 = "dnts_batu.tga",
+        splatDetailNormalDiffuseAlpha = true,
+    },
+    splats = {
+        texScales = {@SKALA@},
+        texMults = {1.0, 1.0, 1.0, 1.0},
     },
 }
 '''
@@ -578,7 +589,8 @@ def tulis_mapinfo(L, rendah, tinggi_):
     tim = "\n".join(f"        [{i}] = {{startPos = {{x = {round(x * 8)}, z = {round(z * 8)}}}}},"
                     for i, (x, z) in enumerate(L.markas))
     teks = (MAPINFO.replace("@SEED@", str(L.seed)).replace("@STEM@", STEM).replace("@TIM@", tim)
-            .replace("@RENDAH@", str(rendah)).replace("@TINGGI@", str(tinggi_)))
+            .replace("@RENDAH@", str(rendah)).replace("@TINGGI@", str(tinggi_))
+            .replace("@SKALA@", ", ".join(f"{1 / (m * 8):.4f}" for m in DNTS_UBIN_M)))
     (ROOT / f"maps/mapinfo-{STEM}.lua").write_text(teks, encoding="utf-8")
 
 
@@ -696,11 +708,49 @@ def tekstur():
     T.buat_semua(H, aliran, endapan, L, UKURAN, WORK / "warna.bmp", WORK / "normal_detail.png", WORK / "spekular.png",
                  cetak=lambda t: print(t, flush=True))
     Image.open(WORK / "warna.bmp").resize((1024, 1024), Image.LANCZOS).save(WORK / "minimap.bmp")
+    Image.open(WORK / "minimap.bmp").convert("RGB").save(ROOT / "menu/RTSPCMenu.sdd/LuaMenu/kapur.jpg", quality=94)
     # nvdxt (32-bit) crash pada 8192^2; pakai encoder BC3 sendiri (tools/dds_bc3.py)
     from dds_bc3 import simpan_bc3
     for nama in ("normal_detail", "spekular"):
         simpan_bc3(np.asarray(Image.open(WORK / f"{nama}.png")), WORK / f"{nama}.dds")
     print(f"tekstur: {time.time() - t0:.0f} s")
+
+
+# --- Tahap 5: DNTS (tools/buat_dnts.py untuk 4 ubin; peta campuran dari data medan) ---
+DNTS = ("rumput", "tanah", "kerikil", "batu")
+# Ukuran ubin di dunia (m): makin kecil makin rapat. texScales = 1 / (meter x 8 elmo).
+DNTS_UBIN_M = (6.0, 10.0, 5.0, 16.0)
+DNTS_TOTAL = .7  # jumlah bobot; < 1 supaya normal detail 8K tahap 4 tetap ikut terlihat
+
+
+def dnts():
+    import buat_dnts
+    t0 = time.time()
+    buat_dnts.buat()
+    H = np.load(WORK / "tinggi.npy").astype(np.float32)
+    aliran = naik(np.load(WORK / "aliran.npy"), N)
+    endapan = naik(np.log1p(np.maximum(np.load(WORK / "endapan.npy"), 0) * 4), N)
+    n2 = 2048
+
+    def kecil(a):
+        return np.asarray(Image.fromarray(np.asarray(a, np.float32), "F").resize((n2, n2), Image.BILINEAR))
+    h = kecil(H)
+    gz, gx = np.gradient(H, 1.0)
+    m = kecil(np.degrees(np.arctan(np.hypot(gx, gz))))
+    a = kecil(aliran)
+    e = kecil(endapan)
+    batu = _halus((m - 24) / 6)
+    # Batas sama dengan tekstur warna (rumput polos, tanah hanya di lereng > ±19°, alur utama saja)
+    kerikil = np.maximum(_halus((a - 6.2) / 1.2), _halus((1.6 - h) / 1.2)) * (1 - batu)
+    tanah = np.maximum(_halus((m - 19) / 6), _halus((e - 1.3) / .8) * .3) * (1 - batu) * (1 - kerikil)
+    rumput = np.clip(1 - batu - kerikil - tanah, 0, 1)
+    w = np.stack([rumput, tanah, kerikil, batu], -1)
+    w = w / np.maximum(w.sum(-1, keepdims=True), 1e-6) * DNTS_TOTAL
+    Image.fromarray((w * 255 + .5).astype(np.uint8), "RGBA").save(WORK / "splat_campur.tga")
+    for nama in DNTS:
+        shutil.copy2(ROOT / ".cache/dnts" / f"{nama}.tga", WORK / f"dnts_{nama}.tga")
+    print(f"dnts: campuran {n2}x{n2} (rumput {100 * (rumput > .5).mean():.0f}%, tanah {100 * (tanah > .5).mean():.0f}%, "
+          f"kerikil {100 * (kerikil > .5).mean():.0f}%, batu {100 * (batu > .5).mean():.0f}%), {time.time() - t0:.0f} s")
 
 
 def paket():
@@ -711,7 +761,8 @@ def paket():
     out = WORK / f"{STEM}.sdz"
     with ZipFile(out, "w", ZIP_DEFLATED) as z:
         z.write(ROOT / f"maps/mapinfo-{STEM}.lua", "mapinfo.lua")
-        for nama in (f"{STEM}.smf", f"{STEM}.smt", "normal_detail.dds", "spekular.dds"):
+        for nama in (f"{STEM}.smf", f"{STEM}.smt", "normal_detail.dds", "spekular.dds", "splat_campur.tga",
+                     *(f"dnts_{d}.tga" for d in DNTS)):
             if (WORK / nama).exists():
                 z.write(WORK / nama, "maps/" + nama)
     out.replace(ROOT / "maps" / out.name)
@@ -720,7 +771,8 @@ def paket():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "kompilasi", "paket"])
+    ap.add_argument("tahap", choices=["tinggi", "siapkan", "tekstur", "dnts", "kompilasi", "paket"])
     a = ap.parse_args()
-    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "kompilasi": kompilasi, "paket": paket}[a.tahap]()
+    {"tinggi": tinggi, "siapkan": siapkan, "tekstur": tekstur, "dnts": dnts, "kompilasi": kompilasi,
+     "paket": paket}[a.tahap]()
 

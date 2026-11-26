@@ -52,5 +52,16 @@ return {
         -- Tahap 4: normal detail ruang tangen (A = kekuatan) dan specular (A x 16 = eksponen)
         detailNormalTex = "normal_detail.dds",
         specularTex = "spekular.dds",
+        -- Tahap 5: DNTS (R rumput, G tanah, B kerikil, A batu); A ubin = detail terang-gelap
+        splatDistrTex = "splat_campur.tga",
+        splatDetailNormalTex1 = "dnts_rumput.tga",
+        splatDetailNormalTex2 = "dnts_tanah.tga",
+        splatDetailNormalTex3 = "dnts_kerikil.tga",
+        splatDetailNormalTex4 = "dnts_batu.tga",
+        splatDetailNormalDiffuseAlpha = true,
+    },
+    splats = {
+        texScales = {0.0208, 0.0125, 0.0250, 0.0078},
+        texMults = {1.0, 1.0, 1.0, 1.0},
     },
 }

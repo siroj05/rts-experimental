@@ -18,9 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ENGINE = ROOT / ".deps/recoil/2026.09.03"
 SALIN = ["skenario/bukit.lua", "skenario/bukit-start.txt", "skenario/sungai.lua", "skenario/sungai-start.txt",
          "skenario/pinus.lua", "skenario/pinus-start.txt", "skenario/hijau.lua", "skenario/hijau-start.txt",
-         "profil_ai.lua"]
+         "skenario/kapur.lua", "skenario/kapur-start.txt", "profil_ai.lua"]
 PETA = ["mapinfo-bukit-tengah.lua", "mapinfo-lembah-sungai.lua", "mapinfo-lintasan-pinus-4v4.lua",
-        "mapinfo-punggung-hijau-4v4.lua"]
+        "mapinfo-punggung-hijau-4v4.lua", "mapinfo-lembah-kapur-4v4.lua"]
 
 
 def main():

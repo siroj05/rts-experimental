@@ -88,11 +88,13 @@ def warna_pita(M, X, Z, h, m, a, e, cav, tambang):
     L = M.L
     # Rumput: segar (dekat alur, rendah) vs kering (tinggi, cembung)
     basah = _halus((a - 2.5) / 3) * .6 + _halus((L.t_teras - 10 - h) / 25) * .4
-    kering = np.clip(.22 + k1 * 1.4 + k2 * .8 - basah * .7 + np.clip(-cav, 0, 2) * .2, 0, 1)[..., None]
-    segar = np.array([54, 84, 36], np.float32)
-    layu = np.array([104, 104, 58], np.float32)
+    # Rumput hampir polos (user 2026-11-26: "rumputnya ko ga hijau polos, banyak banget coraknya jadi jelek"):
+    # satu hijau, variasi hanya skala besar dan sangat lembut, butir halus kecil.
+    kering = np.clip(.12 + k1 * .5 - basah * .2, 0, .35)[..., None]
+    segar = np.array([60, 90, 40], np.float32)
+    layu = np.array([88, 98, 50], np.float32)
     rumput = segar + (layu - segar) * kering
-    rumput = rumput + ((k3 * 26 + k4 * 16 + rp * 22 + k5 * 10)[..., None]) * np.array([.9, 1, .7])
+    rumput = rumput + ((k2 * 6 + k5 * 4)[..., None]) * np.array([.9, 1, .7])
     # Tanah/lanau dan kerikil
     tanah = np.array([112, 96, 72], np.float32) + ((k3 * 20 + k4 * 18 + k5 * 12)[..., None])
     lanau = np.array([138, 124, 98], np.float32) + ((k3 * 14 + k4 * 12 + k5 * 8)[..., None])
@@ -106,14 +108,14 @@ def warna_pita(M, X, Z, h, m, a, e, cav, tambang):
     batu = batu + (np.array([92, 102, 66], np.float32) - batu) * (lumut * .5)[..., None]
     # Campuran menurut medan (aturan BAR: datar = rumput, lereng = kerikil/tanah, tebing = batu)
     w = rumput
-    t_tanah = _halus((m - 13 + k3 * 8 + k4 * 4) / 7)
+    t_tanah = _halus((m - 19 + k3 * 4) / 6)
     w = w + (tanah - w) * t_tanah[..., None]
     t_batu = _halus((m - 25 + k3 * 10 + k4 * 5) / 6)
     w = w + (batu - w) * t_batu[..., None]
-    t_alur = _halus((a - 5.2 + k3 * 2 + k4) / 1.6) * (1 - t_batu)
-    w = w + (kerikil - w) * (t_alur * .6)[..., None]
-    t_endap = _halus((e - .9 + k3 * .8) / .9) * (1 - t_batu) * (1 - t_alur)
-    w = w + (lanau - w) * (t_endap * .55)[..., None]
+    t_alur = _halus((a - 6.2 + k3 * 1.2) / 1.2) * (1 - t_batu)
+    w = w + (kerikil - w) * (t_alur * .45)[..., None]
+    t_endap = _halus((e - 1.3 + k3 * .5) / .8) * (1 - t_batu) * (1 - t_alur)
+    w = w + (lanau - w) * (t_endap * .2)[..., None]
     # Tepi sungai dan arung: kerikil basah; dasar sungai gelap
     t_tepi = _halus((1.6 - h + k4 * .3) / 1.2)
     w = w + (kerikil * .82 - w) * t_tepi[..., None]
@@ -122,7 +124,9 @@ def warna_pita(M, X, Z, h, m, a, e, cav, tambang):
     if tambang is not None:
         w = w + (np.array([104, 82, 62], np.float32) + (k4 * 30)[..., None] - w) * (tambang * .6)[..., None]
     # AO/cavity: cekungan gelap, punggung cembung sedikit terang
-    gelap = np.clip(1 - np.clip(cav, 0, 3) * .11 + np.clip(-cav, 0, 3) * .04, .62, 1.08)
+    # AO lembut; di rumput lebih lemah lagi supaya tidak belang
+    lemah = 1 - .6 * np.clip(1 - t_batu - t_tanah, 0, 1)
+    gelap = np.clip(1 - np.clip(cav, 0, 3) * .11 * lemah + np.clip(-cav, 0, 3) * .03, .7, 1.05)
     w = w * gelap[..., None]
     return np.clip(w, 0, 255)
 

@@ -6,6 +6,7 @@ local maps = {
     {key = "sungai", name = "River Valley", info = "mapinfo-lembah-sungai.lua", size = 4096, z = 0, depth = 4096},
     {key = "pinus", name = "Pine Crossing", info = "mapinfo-lintasan-pinus-4v4.lua", size = 4096, z = 0, depth = 3072},
     {key = "hijau", name = "Verdant Ridge", info = "mapinfo-punggung-hijau-4v4.lua", size = 8192, z = 0, depth = 6144},
+    {key = "kapur", name = "Limestone Valley", info = "mapinfo-lembah-kapur-4v4.lua", size = 12288, z = 0, depth = 12288},
 }
 local mapPicker = {x = 819, y = 602, w = 413, h = 32}
 local mapOptions = {}

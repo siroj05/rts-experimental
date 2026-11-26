@@ -70,7 +70,7 @@ Semua lapisan dibuat oleh generator Python per peta (`tools/buat_<stem>.py`), la
 | Normal map | 512·X (maksimal 8K; "preferably always 8K") | DDS | Relief halus dari heightmap dan detail erosi. |
 | Specular | 256·X × 256·Z (4K boleh) | RGBA DDS | Kilap per permukaan. |
 | DNTS: peta campuran | 2048 px (pangkat dua) | RGBA PNG/TGA | 4 kanal untuk 4 tekstur detail, dari jenis medan dan kemiringan. |
-| DNTS: 4 tekstur detail | 512–1024 px, seamless | **TGA**, bukan DDS (kanal hijau normal map bisa terbalik) | Contoh: rumput, tanah, kerikil, batu. Dibuat sekali di Blender headless lalu dipakai ulang. Skala dan intensitasnya diatur di `mapinfo`. |
+| DNTS: 4 tekstur detail | 512–1024 px, seamless | **TGA**, bukan DDS (kanal hijau normal map bisa terbalik) | Contoh: rumput, tanah, kerikil, batu. Dibuat sekali lalu dipakai ulang (`tools/buat_dnts.py`). 🟡 2026-11-26: dibuat dengan numpy (sintesis spektral FFT, voronoi periodik) karena noise prosedural Blender tidak seamless. RGB = normal ruang tangen (R = +X, G = +Z, B = atas), A = detail terang-gelap berpusat 0,5 (`splatDetailNormalDiffuseAlpha = true`). Ukuran fitur minimal ±20 cm dan kontras alpha sedang (std ±0,05–0,1): fitur lebih kecil hilang oleh mipmap, kontras lebih tinggi terlihat belang. Jumlah bobot campuran ±0,7 supaya normal detail map-wide tetap terlihat. Skala ubin (`splats.texScales`) dan intensitas diatur di `mapinfo`. |
 | Metal map | sesuai PyMapConv | BMP | Titik tambang dari modul layout. |
 | Type map, grass map | 16·X × 16·Z | BMP | Jenis tanah dan kepadatan rumput. |
 | Minimap | 1024 × 1024 | BMP | |
