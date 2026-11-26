@@ -46,9 +46,11 @@ for _, n in ipairs({"medium_tank", "tank_ringan", "medium_tank_destroyer"}) do b
 local bobotKendaraan = {
     {nama = "medium_tank", dasar = 3, lawanBerat = .15, lawanRingan = .1},
     {nama = "tank_ringan", dasar = 3, lawanBerat = 0, lawanRingan = .25},
-    {nama = "medium_tank_destroyer", dasar = 1, lawanBerat = .45, lawanRingan = 0},
+    -- Destroyer: counter tank berat (2026-11-26: dasar 1 -> 1,5, per tank berat .45 -> .7; dulu ±4% produksi).
+    {nama = "medium_tank_destroyer", dasar = 1.5, lawanBerat = .7, lawanRingan = 0},
     {nama = "pengintai", dasar = 1, lawanBerat = 0, lawanRingan = .1, maks = 2},
-    {nama = "artileri_ringan", dasar = 1, lawanBerat = .05, lawanRingan = .05, maks = 4},
+    -- Artileri: + per bangunan pertahanan musuh terlihat dan per radar jauh sendiri (dijaga artileri), maks naik juga.
+    {nama = "artileri_ringan", dasar = 1.5, lawanBerat = .05, lawanRingan = .05, lawanMenara = .6, perRadar = .8, maks = 4},
 }
 local bobotRobot = {
     {nama = "robot_infanteri", dasar = 2, lawanBerat = 0, lawanRingan = .3},
@@ -130,7 +132,12 @@ local function buatPengendali(tim, rencana)
     local ladangDiserang = {} -- ekstraktor sendiri yang pernah diserang/dihancurkan: {x, z, frame}
     local dayaTerakhir = -99999 -- frame perintah perbaikan daya terakhir
     local posTerakhir = -99999 -- frame perintah pos jaga terakhir (jeda 40 detik supaya insinyur lain tidak dobel)
+    local radarTerakhir = -99999
+    local kabur = {} -- insinyur -> frame perintah kabur terakhir
+    local ekspansiTerakhir = -99999
+    local jagaRadar = {} -- radar jauh -> artileri penjaganya
     local diproduksi = {}
+    local nabung = {} -- pabrik -> frame mulai menabung untuk unit pilihan
     local otak = gayaNama and Otak.baru({tim = tim, tingkat = tingkat, gaya = gayaNama, aturan = aturan, tempur = tempur,
         tempurSet = tempurSet, berat = berat, artileri = artileri, lontar = lontar, hq = hq, insinyur = insinyur,
         ekstraktor = ekstraktor, pompa = pompa, pabrik = pabrik, pabrikRobot = pabrikRobot})
@@ -228,16 +235,40 @@ local function buatPengendali(tim, rencana)
 
     local function cariEkstraktor()
         local calon = {}
+        -- Deathmatch: ladang di luar separuh sendiri juga diincar (keputusan user 2026-11-26), dengan radius aman 400.
         for _, l in ipairs(aturan.ladang or {}) do
-            if wilayahSendiri(l[1], l[2]) then calon[#calon + 1] = l end
+            if wilayahSendiri(l[1], l[2]) or aturan.mode == "hancur" then calon[#calon + 1] = l end
         end
         table.sort(calon, function(a, b) return jarak2(a[1], a[2], bx, bz) < jarak2(b[1], b[2], bx, bz) end)
         for _, l in ipairs(calon) do
             local terancam = false
-            for _, u in ipairs(sp.GetUnitsInCylinder(l[1], l[2], 160)) do
+            for _, u in ipairs(sp.GetUnitsInCylinder(l[1], l[2], wilayahSendiri(l[1], l[2]) and 160 or 400)) do
                 if not sp.AreTeamsAllied(sp.GetUnitTeam(u), tim) then terancam = true break end
             end
             if not terancam then
+                local x, y, z = cobaTapak(ekstraktor, l[1], l[2])
+                if x then return x, y, z end
+            end
+        end
+    end
+
+    -- Deathmatch: insinyur ikut merebut sumber mineral (keputusan user 2026-11-26). Ladang kosong yang sedang dijaga
+    -- unit tempur sendiri (dalam 350 elmo) dan tanpa musuh dalam 400 elmo; terdekat dari markas dulu.
+    local function cariEkspansi()
+        local calon = {}
+        for _, l in ipairs(aturan.ladang or {}) do calon[#calon + 1] = l end
+        table.sort(calon, function(a, b) return jarak2(a[1], a[2], bx, bz) < jarak2(b[1], b[2], bx, bz) end)
+        for _, l in ipairs(calon) do
+            local aman, dijaga = true, false
+            for _, u in ipairs(sp.GetUnitsInCylinder(l[1], l[2], 400)) do
+                local t = sp.GetUnitTeam(u)
+                if not sp.AreTeamsAllied(t, tim) then aman = false break end
+                if t == tim and tempurSet[sp.GetUnitDefID(u)] then
+                    local ux, _, uz = sp.GetUnitPosition(u)
+                    if jarak2(ux, uz, l[1], l[2]) < 350^2 then dijaga = true end
+                end
+            end
+            if aman and dijaga then
                 local x, y, z = cobaTapak(ekstraktor, l[1], l[2])
                 if x then return x, y, z end
             end
@@ -425,6 +456,92 @@ local function buatPengendali(tim, rencana)
         end
     end
 
+    -- Radar sendiri yang sudah jadi di luar base utama (> 450 elmo dari markas): dijaga artileri.
+    local function radarJauh()
+        local hasil = {}
+        for _, u in ipairs(unitJadi(radar)) do
+            local x, _, z = sp.GetUnitPosition(u)
+            if x and jarak2(x, z, bx, bz) > 450^2 then hasil[#hasil + 1] = u end
+        end
+        return hasil
+    end
+
+    local function arahMusuh(x, z)
+        local dm, ax, az
+        for _, m in ipairs(musuhAwal) do
+            local d = jarak2(x, z, m[1], m[2])
+            if not dm or d < dm then dm, ax, az = d, m[1] - x, m[2] - z end
+        end
+        if not dm then return maju[1], maju[2] end
+        local p = math.max(1, math.sqrt(ax * ax + az * az))
+        return ax / p, az / p
+    end
+
+    -- Radar (keputusan user 2026-11-26: "ai selalu bangun radar untuk daerah yang menurut dia ga ke cover radar
+    -- (titik buta) tapi radar bukan prioritas utama ... radar utama untuk base utama, lalu di iron ektraktor yang jauh").
+    -- Pertama di base utama (belakang markas, dalam jangkauan daya). Sesudahnya di tambang jauh yang sekitarnya belum
+    -- tertutup radar sekutu (cek langsung ke engine, jadi bayangan bukit ikut terhitung). Daya radar jauh diurus
+    -- perbaikiDaya (Gardu). Mengembalikan x, y, z.
+    local function cariRadar()
+        local semua = sp.GetTeamUnitsByDefs(tim, radar)
+        if #semua >= (tingkat.radar or 0) then return end
+        local adaBase = false
+        for _, u in ipairs(semua) do
+            local x, _, z = sp.GetUnitPosition(u)
+            if x and jarak2(x, z, bx, bz) < 450^2 then adaBase = true end
+        end
+        if not adaBase then
+            local sx, sz = -maju[2], maju[1]
+            for _, lat in ipairs({0, 90, -90, 160, -160}) do
+                for _, dep in ipairs({-140, -200, -80, 0}) do
+                    local px, py, pz = cobaTapak(radar, bx + maju[1] * dep + sx * lat, bz + maju[2] * dep + sz * lat, 16)
+                    if px and jarak2(px, pz, bx, bz) < 330^2 then return px, py, pz end
+                end
+            end
+            return
+        end
+        local calon = {}
+        for _, e in ipairs(unitJadi(ekstraktor)) do
+            local x, _, z = sp.GetUnitPosition(e)
+            if x and jarak2(x, z, bx, bz) > 450^2 then
+                local ax, az = arahMusuh(x, z)
+                local buta = false
+                for _, d in ipairs({0, 400, 700}) do
+                    local tx, tz = x + ax * d, z + az * d
+                    if not sp.IsPosInRadar(tx, sp.GetGroundHeight(tx, tz) + 10, tz, sekutu) then buta = true end
+                end
+                local dekat = false
+                for _, u in ipairs(semua) do
+                    local rx, _, rz = sp.GetUnitPosition(u)
+                    if rx and jarak2(rx, rz, x, z) < 600^2 then dekat = true end
+                end
+                local ancam = sp.GetUnitNearestEnemy(e, 400, false)
+                if buta and not dekat and not ancam then
+                    local dm = math.huge
+                    for _, m in ipairs(musuhAwal) do dm = math.min(dm, jarak2(x, z, m[1], m[2])) end
+                    calon[#calon + 1] = {x = x, z = z, ax = ax, az = az, d = dm}
+                end
+            end
+        end
+        table.sort(calon, function(a, b) return a.d < b.d end)
+        for _, c in ipairs(calon) do
+            -- Di belakang tambang; kalau ada Gardu dekat, dalam jangkauannya supaya langsung menyala.
+            local g
+            for _, u in ipairs(sp.GetTeamUnitsByDefs(tim, gardu)) do
+                local gx, _, gz = sp.GetUnitPosition(u)
+                if gx and jarak2(gx, gz, c.x, c.z) < 200^2 then g = {gx, gz} end
+            end
+            for r = 0, 4 do
+                for i = -r, r do
+                    for _, o in ipairs(r == 0 and {{0, 0}} or {{i, -r}, {i, r}, {-r, i}, {r, i}}) do
+                        local px, py, pz = cobaTapak(radar, c.x - c.ax * 90 + o[1] * 24, c.z - c.az * 90 + o[2] * 24, 16)
+                        if px and (not g or jarak2(px, pz, g[1], g[2]) < 140^2) then return px, py, pz end
+                    end
+                end
+            end
+        end
+    end
+
     local gagalDilapor = {}
     local function tempatBangun(b)
         for _, t in ipairs(b.tapak or {}) do
@@ -451,23 +568,49 @@ local function buatPengendali(tim, rencana)
             -- dipegang di menit 4 menebak pemenang 79% dari 127 ronde uji).
             local kilat = otak and tingkat.kilat and b.def == pengintai and sp.GetGameFrame() < 180 * Game.gameSpeed
             local maks = kilat and 4 or b.maks
-            if (not maks or hidup < maks) and mampu(b.def) then
-                local bobot = (b.dasar + b.lawanBerat * terlihat.berat + b.lawanRingan * terlihat.ringan)
+            if maks and b.perRadar then maks = maks + terlihat.radarJauh end
+            -- Pilih berdasarkan bobot dulu, baru cek biaya (bawah). Dulu hanya unit yang biayanya sudah penuh di stok
+            -- yang ikut dipilih: Destroyer (280 besi) dan artileri (200) hampir tidak pernah lolos (uji 2026-11-26).
+            if not maks or hidup < maks then
+                -- Jumlah musuh terlihat dibatasi 15 supaya gerombolan robot tidak membuat bobot pengintai membengkak.
+                local bobot = (b.dasar + b.lawanBerat * math.min(15, terlihat.berat) + b.lawanRingan * math.min(15, terlihat.ringan)
+                    + (b.lawanMenara or 0) * terlihat.menara + (b.perRadar or 0) * terlihat.radarJauh)
                     * (otak and otak.KaliProduksi(b.def) or 1) * (kilat and 20 or 1)
                 local nilai = bobot / (1 + (diproduksi[b.def] or 0) * .35)
                 if not nilaiTerbaik or nilai > nilaiTerbaik then terbaik, nilaiTerbaik = b.def, nilai end
             end
         end
+        -- Unit pilihan belum terjangkau (70% biaya): pabrik menabung, paling lama 20 detik, lalu jatuh ke unit
+        -- terjangkau dengan bobot terbaik.
+        if terbaik and not mampu(terbaik, .7) then
+            local f = sp.GetGameFrame()
+            nabung[produsen] = nabung[produsen] or f
+            if f - nabung[produsen] < 20 * Game.gameSpeed then return end
+            local cadangan, n0
+            for _, b in ipairs(daftar) do
+                local hidup = sp.GetTeamUnitDefCount(tim, b.def)
+                if (not b.maks or hidup < b.maks) and mampu(b.def) then
+                    local n = b.dasar / (1 + (diproduksi[b.def] or 0) * .35)
+                    if not n0 or n > n0 then cadangan, n0 = b.def, n end
+                end
+            end
+            terbaik = cadangan
+        end
         if terbaik then
+            nabung[produsen] = nil
             sp.GiveOrderToUnit(produsen, -terbaik, {}, 0)
             diproduksi[terbaik] = (diproduksi[terbaik] or 0) + 1
         end
     end
 
     local function musuhTerlihat()
-        local hasil = {berat = 0, ringan = 0}
+        local hasil = {berat = 0, ringan = 0, menara = 0, radarJauh = #radarJauh()}
         for _, t in ipairs(sp.GetTeamList()) do
             if not sp.AreTeamsAllied(t, tim) then
+                for _, u in ipairs(sp.GetTeamUnitsByDefs(t, menara)) do
+                    local p = sp.GetUnitLosState(u, sekutu, false)
+                    if p and (p.los or p.prevLos) then hasil.menara = math.min(5, hasil.menara + 1) end
+                end
                 for _, u in ipairs(sp.GetTeamUnitsByDefs(t, tempur)) do
                     local p = sp.GetUnitLosState(u, sekutu, false)
                     if p and p.los then
@@ -509,6 +652,10 @@ local function buatPengendali(tim, rencana)
         local dipesan = {}
         local frame = sp.GetGameFrame()
         for _, kerja in ipairs(pekerja) do
+          if kabur[kerja] and frame - kabur[kerja] < 8 * Game.gameSpeed then
+            -- Sedang kabur: biarkan perintah MOVE-nya.
+          else
+            kabur[kerja] = nil
             periksaMacet(kerja, frame)
             -- Otak brutal: insinyur terakhir (kalau ada 2 atau lebih) merawat unit yang mundur, mendahului kerja lain.
             local rawat = otak and #pekerja >= 2 and kerja == pekerja[#pekerja] and otak.TugasPerbaikan(kerja)
@@ -566,6 +713,11 @@ local function buatPengendali(tim, rencana)
                         selesai = true
                     end
                 end
+                local kurang = false -- rencana bangun masih punya item yang bisa dibangun (radar menunggu)
+                for _, b in ipairs(rencanaBangun) do
+                    local ada = #sp.GetTeamUnitsByDefs(tim, b.def) + (dipesan[b.def] or 0)
+                    if ada < b.jumlah and not gagalDilapor[b.def] and (b.def ~= menara or energiCukup) then kurang = true end
+                end
                 if not selesai then
                     for _, b in ipairs(rencanaBangun) do
                         local boleh = (not pulih or b.def == pulih or b.def == ekstraktor or b.def == pompa)
@@ -598,7 +750,35 @@ local function buatPengendali(tim, rencana)
                         selesai = true
                     end
                 end
+                -- Ekspansi Deathmatch: setelah rencana, insinyur membangun ekstraktor di ladang yang diamankan pasukan,
+                -- boleh melebihi jatah rencana sampai +4 (jeda 20 detik).
+                if not selesai and not pulih and aturan.mode == "hancur" and frame - ekspansiTerakhir > 20 * Game.gameSpeed
+                    and #sp.GetTeamUnitsByDefs(tim, ekstraktor) + (dipesan[ekstraktor] or 0) < tingkat.ekstraktor + 4
+                    and mampu(ekstraktor, .5) then
+                    local x, y, z = cariEkspansi()
+                    if x then
+                        sp.GiveOrderToUnit(kerja, -ekstraktor, {x, y, z, hadap}, 0)
+                        dipesan[ekstraktor] = (dipesan[ekstraktor] or 0) + 1
+                        ekspansiTerakhir = frame
+                        selesai = true
+                    end
+                end
+                -- Radar: prioritas paling akhir. Menunggu rencana bangun beres (radar base paling lambat menit 6, radar
+                -- jauh menit 9), energi bersih > 4 atau stok > 800 (radar memakai 4/detik), jeda 40 detik.
+                local nRadar = #sp.GetTeamUnitsByDefs(tim, radar)
+                local waktuRadar = not kurang or frame > (nRadar == 0 and 360 or 540) * Game.gameSpeed
+                if not selesai and not pulih and frame > 180 * Game.gameSpeed and waktuRadar
+                    and ((eIn - (eOut or 0)) > 4 or e > 800) and frame - radarTerakhir > 40 * Game.gameSpeed and mampu(radar, .5) then
+                    local x, y, z = cariRadar()
+                    if x then
+                        sp.GiveOrderToUnit(kerja, -radar, {x, y, z, hadap}, 0)
+                        dipesan[radar] = (dipesan[radar] or 0) + 1
+                        radarTerakhir = frame
+                        selesai = true
+                    end
+                end
             end
+          end
         end
 
         if pulih or #sp.GetTeamUnitsByDefs(tim, tempur) >= tingkat.batasPasukan then return end
@@ -693,6 +873,44 @@ local function buatPengendali(tim, rencana)
         local pasukan = unitJadi(tempur)
         -- Otak brutal: unit yang mundur untuk diperbaiki tidak ikut dibagi tugas.
         if otak then pasukan = otak.Rawat(pasukan, frame) end
+
+        -- Artileri pendukung radar (keputusan user 2026-11-26): satu artileri per radar jauh, berdiri ±70 elmo di
+        -- belakang radar (Hold Position) dan menembak kontak radar. Dikeluarkan dari pembagian tugas pasukan.
+        local adaDiPasukan, penjaga = {}, {}
+        for _, u in ipairs(pasukan) do adaDiPasukan[u] = true end
+        for _, r in ipairs(radarJauh()) do
+            local a = jagaRadar[r]
+            local baru = false
+            if not (a and adaDiPasukan[a]) then
+                baru = true
+                a = nil
+                local rx, _, rz = sp.GetUnitPosition(r)
+                local d0
+                for _, u in ipairs(pasukan) do
+                    if sp.GetUnitDefID(u) == artileri and not penjaga[u] then
+                        local ux, _, uz = sp.GetUnitPosition(u)
+                        local d = jarak2(ux, uz, rx, rz)
+                        if not d0 or d < d0 then a, d0 = u, d end
+                    end
+                end
+                jagaRadar[r] = a
+            end
+            if a then
+                penjaga[a] = true
+                local rx, _, rz = sp.GetUnitPosition(r)
+                local ax, az = arahMusuh(rx, rz)
+                local tx, tz = rx - ax * 70, rz - az * 70
+                local ux, _, uz = sp.GetUnitPosition(a)
+                if baru or (jarak2(ux, uz, tx, tz) > 50^2 and sp.GetUnitCommandCount(a) == 0) then
+                    sp.GiveOrderToUnit(a, CMD.FIGHT, {tx, sp.GetGroundHeight(tx, tz), tz}, 0)
+                end
+            end
+        end
+        if next(penjaga) then
+            local sisa = {}
+            for _, u in ipairs(pasukan) do if not penjaga[u] then sisa[#sisa + 1] = u end end
+            pasukan = sisa
+        end
 
         -- Serbuan: satu titik milik musuh yang paling menguntungkan (terdekat dari markas sendiri, sedikit penjaga)
         -- menampung semua unit yang tidak menjaga titik sendiri. Titik musuh lain tidak didatangi.
@@ -931,13 +1149,38 @@ local function buatPengendali(tim, rencana)
         if otak then otak.Hancur(unit, def, team, attackerTeam) end
         if garis then garis.Hancur(unit) end
         if militer then militer.Hancur(unit) end
-        penugasan[unit], lahir[unit] = nil, nil
+        penugasan[unit], lahir[unit], kabur[unit] = nil, nil, nil
         dilepas[unit] = nil
     end
 
-    local function UnitDamaged(unit, def, pemilik, attackerTeam, damage, attackerDef)
+    local function UnitDamaged(unit, def, pemilik, attackerTeam, damage, attackerDef, attackerID)
         if otak and aktif then otak.Rusak(unit, def, pemilik, damage, attackerDef, attackerTeam) end
         if pemilik ~= tim or not attackerTeam or sp.AreTeamsAllied(attackerTeam, tim) then return end
+        -- Insinyur ditembak (keputusan user 2026-11-26): yang sedang membangun tetap membangun; yang diam atau berjalan
+        -- kabur ±300 elmo menjauhi penembak, condong ke markas, lalu tidak diberi tugas baru selama 8 detik.
+        if def == insinyur and aktif and not sp.GetUnitIsBuilding(unit) then
+            local f = sp.GetGameFrame()
+            if not kabur[unit] or f - kabur[unit] > 2 * Game.gameSpeed then
+                local x, _, z = sp.GetUnitPosition(unit)
+                local ax, az = bx - x, bz - z
+                local pa = math.max(1, math.sqrt(ax * ax + az * az))
+                ax, az = ax / pa, az / pa
+                local jx, jz = ax, az
+                local px, _, pz
+                if attackerID and sp.ValidUnitID(attackerID) then px, _, pz = sp.GetUnitPosition(attackerID) end
+                if px then
+                    local dx, dz = x - px, z - pz
+                    local p = math.max(1, math.sqrt(dx * dx + dz * dz))
+                    jx, jz = dx / p * .6 + ax * .4, dz / p * .6 + az * .4
+                    local pj = math.max(.01, math.sqrt(jx * jx + jz * jz))
+                    jx, jz = jx / pj, jz / pj
+                end
+                local tx = math.max(64, math.min(Game.mapSizeX - 64, x + jx * 300))
+                local tz = math.max(64, math.min(Game.mapSizeZ - 64, z + jz * 300))
+                sp.GiveOrderToUnit(unit, CMD.MOVE, {tx, sp.GetGroundHeight(tx, tz), tz}, 0)
+                kabur[unit] = f
+            end
+        end
         if UnitDefs[def].speed == 0 then
             local x, _, z = sp.GetUnitPosition(unit)
             serangan = {x = x, z = z, frame = sp.GetGameFrame()}
@@ -984,5 +1227,5 @@ for _, nama in ipairs({"GameStart", "UnitFinished", "UnitDestroyed", "GameFrame"
     end
 end
 function gadget:UnitDamaged(unit, def, pemilik, damage, _, _, _, attackerID, attackerDef, attackerTeam)
-    for _, ai in ipairs(pengendali) do ai.UnitDamaged(unit, def, pemilik, attackerTeam, damage, attackerDef) end
+    for _, ai in ipairs(pengendali) do ai.UnitDamaged(unit, def, pemilik, attackerTeam, damage, attackerDef, attackerID) end
 end

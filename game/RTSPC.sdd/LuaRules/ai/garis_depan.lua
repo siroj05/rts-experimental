@@ -255,6 +255,37 @@ function M.baru(c)
     -- Deathmatch: sasaran regu dari bangunan musuh yang diingat dan posisi awal markas musuh. Bobot markas 1,4
     -- (2,2 saat mode tekan; markas habis = menang), pabrik 1,2, ekstraktor/pompa 1,0, lainnya 0,7, dikali dendam ke
     -- pemiliknya. Komitmen +0,6. Takut aktif: sasaran terlalu panas -> tunggu 2–4 sel sebelum sasaran.
+    -- Lebih dekat ke markas sendiri daripada ke markas musuh mana pun.
+    local function dekatRumah(x, z)
+        local d = (x - bx)^2 + (z - bz)^2
+        for _, m in ipairs(markasMusuh) do
+            if (x - m.x)^2 + (z - m.z)^2 < d then return false end
+        end
+        return true
+    end
+
+    -- Ladang besi di luar separuh sendiri tanpa ekstraktor sendiri/sekutu dan tanpa bangunan musuh yang diingat.
+    local ladangCache, ladangFrame = {}, -999
+    local function ladangKosong()
+        local f = sp.GetGameFrame()
+        if f - ladangFrame < 90 then return ladangCache end
+        ladangFrame, ladangCache = f, {}
+        local _, bangunan = c.otak.Ingatan()
+        for _, l in ipairs(c.aturan.ladang or {}) do
+            if not dekatRumah(l[1], l[2]) then
+                local isi = false
+                for _, u in ipairs(sp.GetUnitsInCylinder(l[1], l[2], 60)) do
+                    if sp.GetUnitDefID(u) == c.ekstraktor and sp.AreTeamsAllied(sp.GetUnitTeam(u), c.tim) then isi = true end
+                end
+                for _, b in pairs(bangunan) do
+                    if (b.x - l[1])^2 + (b.z - l[2])^2 < 80^2 then isi = true end
+                end
+                if not isi then ladangCache[#ladangCache + 1] = l end
+            end
+        end
+        return ladangCache
+    end
+
     local function sasaranBangunan(x, z, kuat, dituju, lamaKunci)
         local _, bangunan = c.otak.Ingatan()
         local tekan = c.otak.Mode() == "tekan"
@@ -262,9 +293,13 @@ function M.baru(c)
         for u, b in pairs(bangunan) do
             local w = b.def == c.hq and (tekan and 2.2 or 1.4)
                 or ((b.def == c.pabrik or b.def == c.pabrikRobot) and 1.2)
-                or ((b.def == c.ekstraktor or b.def == c.pompa) and 1.0) or .7
+                or (b.def == c.ekstraktor and 1.6) or (b.def == c.pompa and 1.0) or .7
             calon[#calon + 1] = {x = b.x, z = b.z, w = w * c.otak.BobotDendam(b.t), unit = u}
         end
+        -- Incar sumber mineral (keputusan user 2026-11-26: "buat ai itu mengincar sumber mineral"): ekstraktor musuh
+        -- 1,6 (di atas pabrik dan markas kecuali mode tekan), ladang besi kosong 0,9 supaya regu mengamankannya untuk
+        -- insinyur (ekspansi Deathmatch di lawan_skenario boleh melewati separuh peta sendiri).
+        for _, l in ipairs(ladangKosong()) do calon[#calon + 1] = {x = l[1], z = l[2], w = .9} end
         for _, m in ipairs(markasMusuh) do
             if not m.hilang then
                 local sudah = false
@@ -315,22 +350,39 @@ function M.baru(c)
     -- (paling banyak 2 perampok per sasaran); kalau tidak ada, mengintai posisi markas musuh yang belum terlihat.
     local function urusPerampok(unit)
         local x, _, z = sp.GetUnitPosition(unit)
-        local _, bangunan = c.otak.Ingatan()
-        local terbaik, d0
-        for u, b in pairs(bangunan) do
-            if (b.def == c.ekstraktor or b.def == c.pompa) and (tujuanRebut[u] or 0) < 2 then
-                local k = idx(sel(b.x, b.z))
-                if (panasMusuh[k] or 0) < 300 then
-                    local d = (b.x - x)^2 + (b.z - z)^2
-                    if not d0 or d < d0 then terbaik, d0 = u, d end
-                end
-            end
+        local _, bangunan, pekerja = c.otak.Ingatan()
+        -- Serangan ganggu (keputusan user 2026-11-26: "menghancurkan mineral musuh atau menghambat pembangunan musuh").
+        -- Faktor jarak (kecil = didahulukan): bangunan musuh yang masih dibangun .15, insinyur musuh .2, ekstraktor .25,
+        -- pompa 1, lainnya tidak. Hanya sasaran dengan panas musuh < 300, paling banyak 2 perampok per sasaran.
+        local terbaik, d0, tb
+        local function nilai(u, b, faktor)
+            if (tujuanRebut[u] or 0) >= 2 then return end
+            if (panasMusuh[idx(sel(b.x, b.z))] or 0) >= 300 then return end
+            local d = ((b.x - x)^2 + (b.z - z)^2) * faktor
+            if not d0 or d < d0 then terbaik, d0, tb = u, d, b end
         end
+        for u, b in pairs(bangunan) do
+            if b.dibangun then nilai(u, b, .15)
+            elseif b.def == c.ekstraktor then nilai(u, b, .25)
+            elseif b.def == c.pompa then nilai(u, b, 1) end
+        end
+        for u, b in pairs(pekerja or {}) do nilai(u, b, .2) end
         local tx, tz, kunci
         if terbaik then
             tujuanRebut[terbaik] = (tujuanRebut[terbaik] or 0) + 1
-            tx, tz, kunci = bangunan[terbaik].x, bangunan[terbaik].z, "p" .. terbaik
-        else
+            tx, tz, kunci = tb.x, tb.z, "p" .. terbaik
+        end
+        if not tx then
+            -- Tidak ada tambang musuh yang diketahui: intai ladang besi di luar separuh sendiri yang tidak terlihat.
+            for i, l in ipairs(c.aturan.ladang or {}) do
+                if not tx and (tujuanRebut["l" .. i] or 0) < 1 and not dekatRumah(l[1], l[2])
+                    and not sp.IsPosInLos(l[1], sp.GetGroundHeight(l[1], l[2]), l[2], sekutu) then
+                    tujuanRebut["l" .. i] = 1
+                    tx, tz, kunci = l[1], l[2], "l" .. i
+                end
+            end
+        end
+        if not tx then
             for i, m in ipairs(markasMusuh) do
                 if not m.hilang and not tx then tx, tz, kunci = m.x, m.z, "i" .. i end
             end
@@ -373,6 +425,60 @@ function M.baru(c)
         end
     end
 
+    -- Mode serang Deathmatch (keputusan user 2026-11-26: AI memutuskan kapan menyerang dalam grup atau acak/ganggu).
+    -- - grup: kekuatan kita >= 1,15x musuh yang diingat, atau mode tekan. Perampok = profil `perebut`.
+    -- - ganggu: kita < 0,85x musuh, atau tentara utama musuh (gugus terbesar, terlihat/radar) sedang di separuh peta
+    --   kita sehingga ekonominya terbuka. Sampai separuh unit cepat menjadi perampok yang menyebar ke tambang,
+    --   insinyur, dan bangunan musuh yang sedang dibangun; regu utama bertahan.
+    -- Rencana dari radar: gugus musuh (kontak radar maupun terlihat) bernilai >= 250 di separuh kita = peringatan dini,
+    -- regu dalam 1500 elmo bergerak mencegat sebelum bangunan diserang.
+    local cepat = {}
+    for _, n in ipairs({"pengintai", "tank_ringan", "robot_infanteri"}) do
+        if UnitDefNames[n] then cepat[UnitDefNames[n].id] = true end
+    end
+    local modeSerang = "grup"
+    local gantiMode = -99999
+    local function rencanaSerang(pasukan, frame)
+        local ingat = c.otak.Ingatan()
+        local gugus = {}
+        for _, m in pairs(ingat) do
+            if frame - m.f < 6 * Game.gameSpeed then
+                local k = string.format("%d:%d", math.floor(m.x / (2 * S)), math.floor(m.z / (2 * S)))
+                local g = gugus[k] or {x = 0, z = 0, n = 0, radar = 0}
+                g.x, g.z, g.n = g.x + m.x * m.n, g.z + m.z * m.n, g.n + m.n
+                if m.radar then g.radar = g.radar + 1 end
+                gugus[k] = g
+            end
+        end
+        local besar, peringatan
+        for _, g in pairs(gugus) do
+            g.x, g.z = g.x / math.max(1, g.n), g.z / math.max(1, g.n)
+            if not besar or g.n > besar.n then besar = g end
+            if g.n >= 250 and dekatRumah(g.x, g.z) and (not peringatan or g.n > peringatan.n) then peringatan = g end
+        end
+        local kita, musuh = c.otak.Kekuatan()
+        -- Belum ada musuh terlihat (awal ronde): anggap unggul, jangan langsung ganggu.
+        local rasio = musuh < 50 and 2 or kita / musuh
+        local musuhKeluar = besar and besar.n >= 400 and dekatRumah(besar.x, besar.z)
+        local baru = modeSerang
+        if c.otak.Mode() == "tekan" then baru = "grup"
+        elseif rasio < .85 or musuhKeluar then baru = "ganggu"
+        elseif rasio > 1.15 then baru = "grup" end
+        -- Jeda 30 detik antar-ganti supaya perampok tidak bolak-balik.
+        if baru ~= modeSerang and frame - gantiMode > 30 * Game.gameSpeed then
+            modeSerang, gantiMode = baru, frame
+            sp.Echo(string.format("AI tim %d: mode serang %s (kita %.0f, musuh %.0f%s)", c.tim, baru, kita, musuh,
+                musuhKeluar and ", tentara musuh di wilayah kita" or ""))
+        end
+        local kuota = c.tingkat.perebut or 4
+        if modeSerang == "ganggu" then
+            local nCepat = 0
+            for _, u in ipairs(pasukan) do if cepat[sp.GetUnitDefID(u)] then nCepat = nCepat + 1 end end
+            kuota = math.max(kuota, math.floor(nCepat * .5))
+        end
+        return kuota, peringatan and {x = peringatan.x, z = peringatan.z}
+    end
+
     function o.Panas(x, z) return panasMusuh[idx(sel(x, z))] or 0 end
 
     function o.Hancur(unit)
@@ -383,14 +489,36 @@ function M.baru(c)
     function o.Perintah(pasukan, frame, bela)
         if not lewat then return end
         tujuanRebut = {}
+        local kuotaPerebut = c.tingkat.perebut or 4
+        local peringatan
+        if hancur then
+            kuotaPerebut, peringatan = rencanaSerang(pasukan, frame)
+            -- Mode grup: perampok berlebih (sisa mode ganggu) kembali ke regu, pengintai tetap perampok.
+            local n = 0
+            for u in pairs(perebut) do
+                if sp.ValidUnitID(u) then
+                    n = n + 1
+                    if n > kuotaPerebut and sp.GetUnitDefID(u) ~= c.pengintai then perebut[u], tujuanUnit[u] = nil, nil end
+                end
+            end
+        end
         local jumlahPerebut = 0
         for u in pairs(perebut) do
             if sp.ValidUnitID(u) then jumlahPerebut = jumlahPerebut + 1 else o.Hancur(u) end
         end
+        if bela == nil and peringatan then bela = peringatan end
         local tempur = {}
-        for _, u in ipairs(pasukan) do
+        -- Mode ganggu memilih unit cepat dulu (pengintai, tank ringan, robot infanteri).
+        local urut = pasukan
+        if modeSerang == "ganggu" then
+            urut = {}
+            for _, u in ipairs(pasukan) do if cepat[sp.GetUnitDefID(u)] then urut[#urut + 1] = u end end
+            for _, u in ipairs(pasukan) do if not cepat[sp.GetUnitDefID(u)] then urut[#urut + 1] = u end end
+        end
+        for _, u in ipairs(urut) do
             local def = sp.GetUnitDefID(u)
-            if not perebut[u] and def ~= c.artileri and (def == c.pengintai or jumlahPerebut < (c.tingkat.perebut or 4)) then
+            local boleh = modeSerang ~= "ganggu" or cepat[def]
+            if not perebut[u] and def ~= c.artileri and boleh and (def == c.pengintai or jumlahPerebut < kuotaPerebut) then
                 perebut[u] = true
                 jumlahPerebut = jumlahPerebut + 1
             end
@@ -510,7 +638,7 @@ function M.baru(c)
                 cx / S, cz / S)
         end
         table.sort(ringkas)
-        o.laporan = string.format("depan=%d perebut=%d tempur=%d regu=%s", #depan, jumlahPerebut, #tempur,
+        o.laporan = string.format("serang=%s depan=%d perebut=%d tempur=%d regu=%s", modeSerang, #depan, jumlahPerebut, #tempur,
             table.concat(ringkas, ","))
     end
 

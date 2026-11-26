@@ -54,6 +54,7 @@ function M.baru(c)
     local ingat, bangunan, dendam, gagal, efek, mundur = {}, {}, {}, {}, {}, {}
     local mode, sasaran, fase, kuatAwal = "ekspansi", nil, "kumpul", 0
     local kekuatanKita, kekuatanMusuh = 0, 0
+    local pekerja = {} -- insinyur musuh yang diingat {x, z, f, t}
     local frameLalu = 0
     local awal = true
     local gerak, macetKali, paksaSampai = nil, 0, 0
@@ -98,12 +99,25 @@ function M.baru(c)
                         local def = sp.GetUnitDefID(u)
                         local x, _, z = sp.GetUnitPosition(u)
                         if c.tempurSet[def] then
-                            ingat[u] = {x = x, z = z, n = nilaiUnit(u, def), f = frame, t = t, def = def}
+                            -- radar = hanya kontak radar (belum terlihat), untuk rencana dari radar di garis_depan.
+                            ingat[u] = {x = x, z = z, n = nilaiUnit(u, def), f = frame, t = t, def = def, radar = not los.los}
                         elseif los.los and UnitDefs[def].speed == 0 then
-                            bangunan[u] = {x = x, z = z, def = def, t = t}
+                            bangunan[u] = {x = x, z = z, def = def, t = t, dibangun = sp.GetUnitIsBeingBuilt(u)}
+                        elseif UnitDefs[def].isBuilder and UnitDefs[def].speed > 0 then
+                            -- Insinyur musuh (terlihat atau kontak radar): sasaran serangan ganggu.
+                            pekerja[u] = {x = x, z = z, f = frame, t = t}
                         end
                     end
                 end
+            end
+        end
+        for u, m in pairs(pekerja) do
+            if frame - m.f > 20 * Game.gameSpeed or not sp.ValidUnitID(u) then pekerja[u] = nil end
+        end
+        for u, b in pairs(bangunan) do
+            if b.dibangun and sp.ValidUnitID(u) then
+                local los = sp.GetUnitLosState(u, sekutu, false)
+                if los and los.los then b.dibangun = sp.GetUnitIsBeingBuilt(u) end
             end
         end
         kekuatanMusuh = 0
@@ -158,7 +172,7 @@ function M.baru(c)
     end
 
     function o.Hancur(unit, def, team, attackerTeam)
-        ingat[unit], bangunan[unit], mundur[unit] = nil, nil, nil
+        ingat[unit], bangunan[unit], mundur[unit], pekerja[unit] = nil, nil, nil, nil
         if team ~= tim then return end
         local ud = UnitDefs[def]
         if c.tempurSet[def] then
@@ -421,7 +435,8 @@ function M.baru(c)
         end
     end
 
-    function o.Ingatan() return ingat, bangunan end
+    function o.Ingatan() return ingat, bangunan, pekerja end
+    function o.Kekuatan() return kekuatanKita, kekuatanMusuh end
     function o.BobotDendam(t) return bobotDendam(t) end
 
     -- Bela markas hanya kalau penyerang berbobot (bukan pengintai lewat).
