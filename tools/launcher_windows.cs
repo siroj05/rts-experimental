@@ -41,7 +41,7 @@ internal static class Launcher
             using (Process game = Process.Start(new ProcessStartInfo {
                 FileName = Path.Combine(folder, "spring.exe"),
                 WorkingDirectory = folder,
-                Arguments = "--isolation --only-local --window --menu RTSPCMenu.sdd",
+                Arguments = "--isolation --only-local --menu RTSPCMenu.sdd",
                 UseShellExecute = false
             })) { }
             return 0;
