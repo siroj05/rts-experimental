@@ -14,6 +14,7 @@ Repo dikerjakan bergantian dengan GPT (aturannya di `AGENTS.md`). Ikuti protokol
 ## Aturan kerja
 - Commit dan push hanya kalau user minta. Commit hanya file milik sendiri (`git add <file>`), jangan `git add -A` / `git add .`. Jangan `reset --hard`, `stash`, `checkout -- <file>`.
 - Aset atau peta kandidat buatan GPT (mode B di `AGENTS.md`) jangan diubah tanpa izin user.
+- **Aturan peta 2026-11-26 (keputusan user).** Setiap peta baru mengikuti [docs/aturan-peta.md](docs/aturan-peta.md): aturan desain dan teknik dari BAR dan FAF/Supreme Commander (ukuran, simetri, logam per pemain, zona tambang, medan, objek, cahaya, pipeline lapisan tekstur).
 - Bedakan keputusan user (✅, tanggal + kutipan) dan usulan sendiri (🟡).
 - Keputusan yang mengubah tampilan, gameplay, atau tradeoff performa: diskusikan dulu, kecuali sudah ada di rencana yang disetujui.
 - Verifikasi visual pakai screenshot Recoil sungguhan (`python tools/uji_visual.py ...`), bukan asumsi. Lihat gambarnya sebelum melapor.

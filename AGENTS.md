@@ -17,6 +17,7 @@ User akan bilang salah satu. Kalau tidak jelas, tanya.
 ### Mode B: membuat aset atau peta kandidat (belum masuk menu/game)
 - Hanya buat file baru milik aset itu, dengan nama yang jelas (mis. `maps/<stem>.sdz`, `maps/mapinfo-<stem>.lua`, `tools/buat_<stem>.py`, `game/RTSPC.sdd/gamedata/skenario/<nama>.lua` + `-start.txt`, `docs/peta-<stem>.md`, sumber Blender di `../blender-assets/`).
 - **Jangan** mengubah file bersama: `menu/`, `game/RTSPC.sdd/LuaUI/`, `game/RTSPC.sdd/LuaRules/`, `gamedata/fraksi1.lua`, `uji-bukit.ps1`, `tools/build_windows.py`, `README.md`, `docs/tahapan.md`, atau peta lain, kecuali user mengizinkan. Satu pengecualian untuk peta: satu baris pemilih skenario di `game/RTSPC.sdd/gamedata/skenario.lua`.
+- Peta baru wajib mengikuti [docs/aturan-peta.md](docs/aturan-peta.md) (keputusan user 2026-11-26): aturan desain dan teknik dari BAR dan FAF/Supreme Commander.
 - Uji lewat start script atau `.cmd` sendiri. Pendaftaran ke menu skirmish dan paket Windows dikerjakan di Mode A setelah user setuju.
 - Catat di `docs/<aset>.md`: apa asetnya, sumber/lisensi, ukuran, hasil uji, kekurangan yang masih terlihat.
 
