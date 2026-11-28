@@ -73,7 +73,8 @@ local rencanaBawaan = {
     {unit = "pompa_minyak", jumlah = 1},
     {unit = "ekstraktor_besi", jumlah = 3},
     {unit = "pabrik_robot", jumlah = 1},
-    {unit = "menara_pertahanan", jumlah = 1}, -- jumlah menara dibatasi tingkat.menara (Easy 0)
+    {unit = "menara_pertahanan", jumlah = 1}, -- jumlah menara dibatasi tingkat.menara
+    {unit = "gudang", jumlah = 1},
     {unit = "pompa_minyak", jumlah = 2},
     {unit = "ekstraktor_besi", jumlah = 5},
     {unit = "pompa_minyak", jumlah = 3},
@@ -82,6 +83,11 @@ local rencanaBawaan = {
     {unit = "ekstraktor_besi", jumlah = 8},
     {unit = "pompa_minyak", jumlah = 4},
     {unit = "menara_pertahanan", jumlah = 3},
+    -- Pendukung dan pertahanan tambahan (bug user 2026-11-28: "tidak membuat pertahanan dan support"). Jumlah menara
+    -- tetap dibatasi tingkat.menara.
+    {unit = "gudang", jumlah = 1},
+    {unit = "menara_pertahanan", jumlah = 4},
+    {unit = "gudang", jumlah = 2},
 }
 
 local function jarak2(ax, az, bx, bz) return (ax - bx)^2 + (az - bz)^2 end
@@ -247,12 +253,20 @@ local function buatPengendali(tim, rencana)
 
     local function lahanBebas(def, x, z, jarakTepi)
         local data = UnitDefs[def]
-        local hx, hz = data.xsize * 4 + jarakTepi, data.zsize * 4 + jarakTepi
+        local tx, tz = data.xsize * 4, data.zsize * 4
+        local hx, hz = tx + jarakTepi, tz + jarakTepi
         -- Pohon di tapak harus di-reclaim dulu oleh insinyur dan bisa menahannya lama; pilih lahan tanpa fitur.
         if #sp.GetFeaturesInRectangle(x - hx, z - hz, x + hx, z + hz) > 0 then return false end
-        for _, u in ipairs(sp.GetUnitsInRectangle(x - hx, z - hz, x + hx, z + hz)) do
+        -- Celah ke bangunan lain diukur dari tapak masing-masing, bukan titik tengahnya (bug user 2026-11-28: "pola
+        -- pembangunan ai ... selalu menjebak dirinya sendiri"; HQ F2 11x11 yang titik tengahnya di luar kotak lolos
+        -- pengecekan lama, jadi bangunan menempel dan unit terkurung di celahnya).
+        local cari = 100
+        for _, u in ipairs(sp.GetUnitsInRectangle(x - hx - cari, z - hz - cari, x + hx + cari, z + hz + cari)) do
             local ud = UnitDefs[sp.GetUnitDefID(u)]
-            if ud and (ud.isBuilding or ud.speed == 0) then return false end
+            if ud and (ud.isBuilding or ud.speed == 0) then
+                local ux, _, uz = sp.GetUnitPosition(u)
+                if math.abs(ux - x) < hx + ud.xsize * 4 and math.abs(uz - z) < hz + ud.zsize * 4 then return false end
+            end
         end
         for _, l in ipairs(aturan.ladang or {}) do
             if jarak2(x, z, l[1], l[2]) < (hx + 40)^2 then return false end
@@ -337,8 +351,12 @@ local function buatPengendali(tim, rencana)
 
     -- Cincin persegi di sekitar jangkar di depan markas, langkah 48 elmo.
     local function cariLahan(def)
-        local jarakTepi = (def == pabrik or def == pabrikRobot) and 40 or 20
-        local ax, az = bx + maju[1] * 170, bz + maju[2] * 170
+        -- 🟡 Celah 56 elmo (7 m, lebih dari tapak tank F2 6 m) dan 72 untuk pabrik supaya jalur keluar terbuka.
+        local jarakTepi = (def == pabrik or def == pabrikRobot) and 72 or 56
+        -- Jangkar diacak tiap bangunan supaya bentuk base tidak selalu sama (bug user 2026-11-28: "pola pembangunan
+        -- ai selalu sama"). math.random di gadget synced memakai RNG sinkron Recoil.
+        local dep, lat = math.random(130, 250), math.random(-140, 140)
+        local ax, az = bx + maju[1] * dep - maju[2] * lat, bz + maju[2] * dep + maju[1] * lat
         for r = 0, 14 do
             for i = -r, r do
                 for _, o in ipairs(r == 0 and {{0, 0}} or {{i, -r}, {i, r}, {-r, i}, {r, i}}) do
@@ -357,8 +375,9 @@ local function buatPengendali(tim, rencana)
     local function cariMenara()
         local sx, sz = -maju[2], maju[1]
         local ada = sp.GetTeamUnitsByDefs(tim, menara)
-        for _, lat in ipairs({0, 150, -150, 75, -75, 225, -225}) do
-            for _, dep in ipairs({250, 200, 300, 150}) do
+        -- Posisi lebih banyak karena celah antarbangunan kini lebih lebar (2026-11-28).
+        for _, lat in ipairs({0, 150, -150, 75, -75, 225, -225, 300, -300}) do
+            for _, dep in ipairs({250, 200, 300, 150, 120}) do
                 local x, z = bx + maju[1] * dep + sx * lat, bz + maju[2] * dep + sz * lat
                 if jarak2(x, z, bx, bz) < 320^2 then
                     local px, py, pz = cobaTapak(menara, x, z, 20)
@@ -585,7 +604,7 @@ local function buatPengendali(tim, rencana)
     local gagalDilapor = {}
     local function tempatBangun(b)
         for _, t in ipairs(b.tapak or {}) do
-            local x, y, z = cobaTapak(b.def, t[1], t[2])
+            local x, y, z = cobaTapak(b.def, t[1], t[2], 40)
             if x then return x, y, z end
         end
         local x, y, z

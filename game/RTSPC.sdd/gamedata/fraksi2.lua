@@ -96,6 +96,18 @@ return function(units, weapons, movement, armor)
         end
     end
 
+    -- Tapak tank Fraksi 2 (bug user 2026-11-28: "tank berebut jalan"; tank F2 saling menumpuk). Model F2 lebih besar
+    -- dari F1 (lambung Medium 3,9 x 8 m, Destroyer 3,7 x 7,1 m), tetapi tapak gerak masih tapak F1 (2x2 sampai 2x3).
+    -- 🟡 Semua tank F2 memakai kelas gerak 3x3 (6 x 6 m) sesuai rata-rata lebar dan panjang lambung.
+    movement[#movement + 1] = {name = "tank_f2", footprintx = 3, footprintz = 3, speedmodclass = 0,
+        maxslope = 28, maxwaterdepth = 0}
+    for _, kunci in ipairs({"pengintai_f2", "tank_ringan_f2", "medium_tank_f2", "medium_tank_destroyer_f2",
+            "artileri_ringan_f2"}) do
+        setel(units[kunci], "movementClass", "tank_f2")
+        setel(units[kunci], "footprintx", 3)
+        setel(units[kunci], "footprintz", 3)
+    end
+
     -- Engineer Tank: tapak tank 3x3 (model 4,7 x 5,1 m), dibuat HQ dan Vehicle Factory.
     local insinyur = units.tank_insinyur_f2
     setel(insinyur, "name", "Engineer Tank")

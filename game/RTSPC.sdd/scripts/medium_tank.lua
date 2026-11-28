@@ -110,7 +110,10 @@ function script.AimWeapon(weapon, heading, pitch)
     end
     WaitForTurn(turret, y_axis)
     WaitForTurn(barrel, x_axis)
-    return math.abs(pitch) <= limit
+    -- Laras model dibatasi ±10°, tetapi tembakan boleh -25°..+35° (bug user 2026-11-28: "kadang diam tidak menembak tapi
+    -- laras mencoba mengangkat elevasi setinggi mungkin"). Pitch dari engine relatif ke badan, jadi di lereng sasaran
+    -- datar pun bisa lewat ±10° dan tank tidak pernah menembak. Arah peluru dihitung engine, bukan dari laras.
+    return pitch >= -math.rad(25) and pitch <= math.rad(35)
 end
 
 local function recoil()

@@ -12,6 +12,10 @@ if not gadgetHandler:IsSyncedCode() then return false end
 -- berpusat di tengah model. Unit bergerak tidak diubah (sudah punya kotak di def).
 local sp = Spring
 local KOTAK, UJI_KONTINU = 2, 1
+-- Titik bidik bangunan paling tinggi 3 m di atas dasar (bug user 2026-11-28: "unit sulit menembak iron ektraktor ...
+-- laras mencoba mengangkat elevasi setinggi mungkin"). Ekstraktor tingginya 17 m; titik bidik di tengah model (8,6 m)
+-- di luar elevasi maksimal tank yang dekat.
+local BIDIK_MAKS = 24
 local data = {}
 for id, ud in pairs(UnitDefs) do
     local m = ud.model
@@ -26,6 +30,8 @@ function gadget:UnitCreated(unit, def)
     if not d then return end
     -- Offset relatif ke titik tengah model; tengah model = tengah batas, jadi offset nol.
     sp.SetUnitCollisionVolumeData(unit, d[1], d[2], d[3], 0, 0, 0, KOTAK, UJI_KONTINU, 1)
+    local bx, by, bz, mx, my, mz = sp.GetUnitPosition(unit, true)
+    if bx then sp.SetUnitMidAndAimPos(unit, mx, my, mz, mx, by + math.min(d[2] * .5, BIDIK_MAKS), mz) end
 end
 
 function gadget:Initialize()

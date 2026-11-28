@@ -11,6 +11,11 @@ if dasarNama then batasTembak = rigF1[dasarNama] or {min = -10, max = 10} end
 if dasarNama == "medium_tank" then batasTembak = {min = -10, max = 10} end
 local tembakMin = math.rad(batasTembak.min or -20)
 local tembakMax = math.rad(batasTembak.max or 30)
+-- Senjata langsung boleh menembak -25°..+35° walau laras model mentok lebih awal (bug user 2026-11-28: tank diam dengan
+-- laras terangkat; pitch dari engine relatif ke badan sehingga di lereng melewati batas model). Artileri tetap.
+if not distant then
+    tembakMin, tembakMax = math.min(tembakMin, math.rad(-25)), math.max(tembakMax, math.rad(35))
+end
 local distant = (def.customParams.dasar or def.name) == "artileri_ringan"
 local map = sp.GetUnitPieceMap(unitID)
 local turret = map.turret and piece("turret")

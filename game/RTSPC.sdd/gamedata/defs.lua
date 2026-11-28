@@ -93,6 +93,10 @@ end
 -- (impulseFactor bawaan 1) bisa melontarkan unit ringan. Damage tetap utuh.
 for _, weapon in pairs(weapons) do
     weapon.impulsefactor, weapon.impulseboost = 0, 0
+    -- Bangkai dan fitur lain tidak menghalangi tembakan (bug user 2026-11-28: "bangkai tank ... tidak menembak,
+    -- menghalangi pandangan ai, tank yang menembus bangkai tidak bisa ditembak"). Bawaan Recoil: senjata menahan
+    -- tembakan kalau ada fitur di jalur dan peluru meledak di fitur.
+    weapon.avoidfeature, weapon.collidefeature = false, false
 end
 
 -- Tapak tanah di bawah bangunan (✅ user 2026-11-26). Tekstur dari tools/buat_decal.py. Ukurannya tapak ditambah
