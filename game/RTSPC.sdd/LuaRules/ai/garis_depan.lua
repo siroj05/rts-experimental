@@ -10,9 +10,15 @@
 --   mundur sampai 3 sel kalau daya tembak musuh di sana melebihi ambang × kekuatan regu ("takut").
 -- - Regu perebut (pengintai + sampai `perebut` unit tempur pertama) terpisah: masing-masing menuju titik bukan milik
 --   kita yang terdekat dan belum dituju perebut lain; kalau semua titik milik kita, menjaga titik terdekat garis depan.
+-- Perbandingan def lintas fraksi (bug 2026-11-28): AI F1 tidak mengenali HQ/pabrik F2 karena membandingkan dengan def
+-- fraksinya sendiri. sama(a, b) benar kalau kedua def berpadanan (gamedata/fraksi.lua).
+local dasarDef = VFS.Include("gamedata/fraksi.lua").dasar
+local function sama(a, b) return a ~= nil and b ~= nil and dasarDef[a] == dasarDef[b] end
 local sp = Spring
 local M = {}
 local S = 256
+-- Rencana serbu markas per kubu (allyTeam), dipakai bersama semua AI sekutu dalam gadget yang sama.
+local rencanaKubu = {}
 
 function M.baru(c)
     -- c: {tim, tingkat, aturan, otak, pengintai, artileri, lontar, bx, bz (diisi Mulai), sekutu}
@@ -116,7 +122,7 @@ function M.baru(c)
             if not m.hilang and sp.IsPosInLos(m.x, sp.GetGroundHeight(m.x, m.z), m.z, sekutu) then
                 local ada = false
                 for _, b in pairs(bangunan) do
-                    if b.def == c.hq and (b.x - m.x)^2 + (b.z - m.z)^2 < 400^2 then ada = true end
+                    if sama(b.def, c.hq) and (b.x - m.x)^2 + (b.z - m.z)^2 < 400^2 then ada = true end
                 end
                 if not ada then m.hilang = true end
             end
@@ -286,20 +292,46 @@ function M.baru(c)
         return ladangCache
     end
 
+    -- Batas tunggu (bug user 2026-11-28, Limestone Valley Deathmatch: "mereka berkumpul tanpa tujuan jelas"). Regu yang
+    -- takut (menunggu di depan sasaran panas) atau menahan garis di depan musuh tidak punya batas waktu, jadi dua pihak
+    -- bisa saling menunggu selamanya (uji 2026-11-28: satu laga buntu 30 menit). 🟡 Kalau sasaran yang sama ditunggu
+    -- lebih dari 45 detik, regu menuju sasaran itu nekat menyerang selama 30 detik tanpa takut dan tanpa menahan garis.
+    local TUNGGU_MAKS, NEKAT_LAMA = 45 * Game.gameSpeed, 30 * Game.gameSpeed
+    local tungguSejak, nekatSampai = {}, {}
+    local function nekat(kunci)
+        return kunci ~= nil and (nekatSampai[kunci] or -1) > sp.GetGameFrame()
+    end
+    local function catatTunggu(kunci, menunggu)
+        local f = sp.GetGameFrame()
+        if not menunggu then
+            tungguSejak[kunci] = nil
+            return
+        end
+        tungguSejak[kunci] = tungguSejak[kunci] or f
+        if f - tungguSejak[kunci] > TUNGGU_MAKS then
+            nekatSampai[kunci], tungguSejak[kunci] = f + NEKAT_LAMA, nil
+        end
+    end
+
+    local ladangSejak, ladangLarang = {}, {}
     local function sasaranBangunan(x, z, kuat, dituju, lamaKunci)
         local _, bangunan = c.otak.Ingatan()
         local tekan = c.otak.Mode() == "tekan"
         local calon = {}
         for u, b in pairs(bangunan) do
-            local w = b.def == c.hq and (tekan and 2.2 or 1.4)
-                or ((b.def == c.pabrik or b.def == c.pabrikRobot) and 1.2)
-                or (b.def == c.ekstraktor and 1.6) or (b.def == c.pompa and 1.0) or .7
+            local w = sama(b.def, c.hq) and (tekan and 2.2 or 1.4)
+                or ((sama(b.def, c.pabrik) or sama(b.def, c.pabrikRobot)) and 1.2)
+                or (sama(b.def, c.ekstraktor) and 1.6) or (sama(b.def, c.pompa) and 1.0) or .7
             calon[#calon + 1] = {x = b.x, z = b.z, w = w * c.otak.BobotDendam(b.t), unit = u}
         end
         -- Incar sumber mineral (keputusan user 2026-11-26: "buat ai itu mengincar sumber mineral"): ekstraktor musuh
         -- 1,6 (di atas pabrik dan markas kecuali mode tekan), ladang besi kosong 0,9 supaya regu mengamankannya untuk
         -- insinyur (ekspansi Deathmatch di lawan_skenario boleh melewati separuh peta sendiri).
-        for _, l in ipairs(ladangKosong()) do calon[#calon + 1] = {x = l[1], z = l[2], w = .9} end
+        local f = sp.GetGameFrame()
+        for _, l in ipairs(ladangKosong()) do
+            local kk = string.format("%d:%d", sel(l[1], l[2]))
+            if (ladangLarang[kk] or -1) < f then calon[#calon + 1] = {x = l[1], z = l[2], w = .9, ladang = kk} end
+        end
         for _, m in ipairs(markasMusuh) do
             if not m.hilang then
                 local sudah = false
@@ -317,6 +349,19 @@ function M.baru(c)
             if not skor or s > skor then terbaik, skor = k, s end
         end
         if not terbaik then return nil end
+        -- Ladang kosong yang sudah dijaga regu > 40 detik (insinyur tidak datang) dicoret 2 menit, supaya regu tidak
+        -- parkir di ladang selamanya (uji Limestone 2026-11-28: 29 unit diam di satu ladang dari menit 27 sampai 35).
+        if terbaik.ladang then
+            local kk = terbaik.ladang
+            if (terbaik.x - x)^2 + (terbaik.z - z)^2 < 300^2 then
+                ladangSejak[kk] = ladangSejak[kk] or f
+                if f - ladangSejak[kk] > 40 * Game.gameSpeed then
+                    ladangLarang[kk], ladangSejak[kk] = f + 120 * Game.gameSpeed, nil
+                end
+            else
+                ladangSejak[kk] = nil
+            end
+        end
         dituju[terbaik.kunci] = (dituju[terbaik.kunci] or 0) + 1
         local dx, dz = terbaik.x - x, terbaik.z - z
         local p = math.max(1, math.sqrt(dx * dx + dz * dz))
@@ -327,14 +372,14 @@ function M.baru(c)
             local k = idx(sel(px, pz))
             return (panasMusuh[k] or 0) <= ambang * (kuat + (panasKita[k] or 0))
         end
-        if not aman(terbaik.x, terbaik.z) then
+        if not nekat(terbaik.kunci) and not aman(terbaik.x, terbaik.z) then
             for _, n in ipairs({2, 3, 4}) do
                 local sx, sz = terbaik.x - ni * n * S, terbaik.z - nj * n * S
-                if lewat[idx(sel(sx, sz))] and aman(sx, sz) then return sx, sz, ni, nj, terbaik.kunci end
+                if lewat[idx(sel(sx, sz))] and aman(sx, sz) then return sx, sz, ni, nj, terbaik.kunci, nil, true end
             end
             for n = 5, 9 do
                 local sx, sz = terbaik.x - ni * n * S, terbaik.z - nj * n * S
-                if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, terbaik.kunci end
+                if lewat[idx(sel(sx, sz))] then return sx, sz, ni, nj, terbaik.kunci, nil, true end
             end
             -- Tidak ada sel tunggu yang bisa dilalui: maju ke sasaran (diam di tempat dulu membuat 4v4 berakhir seri).
             local depan = math.min(p, 160)
@@ -363,8 +408,8 @@ function M.baru(c)
         end
         for u, b in pairs(bangunan) do
             if b.dibangun then nilai(u, b, .15)
-            elseif b.def == c.ekstraktor then nilai(u, b, .25)
-            elseif b.def == c.pompa then nilai(u, b, 1) end
+            elseif sama(b.def, c.ekstraktor) then nilai(u, b, .25)
+            elseif sama(b.def, c.pompa) then nilai(u, b, 1) end
         end
         for u, b in pairs(pekerja or {}) do nilai(u, b, .2) end
         local tx, tz, kunci
@@ -488,6 +533,186 @@ function M.baru(c)
     end
 
     -- pasukan: unit tempur yang sudah dilepas (tidak sedang mundur). bela: {x, z} bangunan diserang (berbobot).
+    -- ===== Rencana serbu markas (Deathmatch) =====
+    -- User 2026-11-28 (✅): "cek referrensi biar AI punya rencana nyerang base". Pola dari CircuitAI (BARb,
+    -- src/circuit/module/MilitaryManager.cpp dan task/fighter/AttackTask.cpp, dibaca sebagai referensi): regu serang
+    -- minimal 8 unit, kumpul ulang dengan batas 60 detik, sasaran = kelompok musuh yang paling lemah dibobot jarak,
+    -- kekuatan regu dibandingkan pengaruh musuh di sasaran. 🟡 Tambahan sendiri karena CircuitAI tidak menjamin
+    -- serbuan ke markas:
+    -- - Eskalasi waktu: syarat kekuatan kubu / panas pertahanan markas sasaran turun dari 1,6 (menit 8) ke 0,7
+    --   (menit 26), jadi kubu yang imbang tetap menyerbu.
+    -- - Koordinasi: semua AI satu kubu memakai satu rencana (rencanaKubu[allyTeam]); 80% pasukan tempur tiap tim ikut.
+    -- - Fase: siap -> kumpul (titik ±1 km di depan markas sasaran; serbu saat 70% hadir atau 60 detik) -> serbu
+    --   (CMD.ATTACK ke HQ, tanpa takut dan tanpa tahan garis) -> pulih 60 detik kalau kekuatan < 40%.
+--   Batas kumpul mengikuti jarak tempuh (60-240 detik).
+    local MENIT = 60 * Game.gameSpeed
+    local function panasDi(x, z, r)
+        local n = 0
+        local i0, j0 = sel(x - r, z - r)
+        local i1, j1 = sel(x + r, z + r)
+        for j = j0, j1 do for i = i0, i1 do n = n + (panasMusuh[idx(i, j)] or 0) end end
+        return n
+    end
+    local function kekuatanKubu()
+        local n, jumlah = 0, 0
+        for _, t in ipairs(sp.GetTeamList()) do
+            if sp.AreTeamsAllied(t, c.tim) then
+                for _, u in ipairs(sp.GetTeamUnits(t)) do
+                    local def = sp.GetUnitDefID(u)
+                    if c.tempurSet[def] and not sp.GetUnitIsBeingBuilt(u) then
+                        n, jumlah = n + nilaiUnit(u, def), jumlah + 1
+                    end
+                end
+            end
+        end
+        return n, jumlah
+    end
+    local function markasHidup(r)
+        if r.unit then return sp.ValidUnitID(r.unit) and not sp.GetUnitIsDead(r.unit) end
+        for _, m in ipairs(markasMusuh) do
+            if m.x == r.x and m.z == r.z then return not m.hilang end
+        end
+        return false
+    end
+    -- Markas musuh paling lemah dan dekat: HQ yang diingat, atau posisi awal markas yang belum dicoret.
+    local function pilihMarkas()
+        local _, bangunan = c.otak.Ingatan()
+        local calon = {}
+        for u, b in pairs(bangunan) do
+            if sama(b.def, c.hq) then calon[#calon + 1] = {x = b.x, z = b.z, unit = u} end
+        end
+        for _, m in ipairs(markasMusuh) do
+            if not m.hilang then
+                local ada = false
+                for _, k in ipairs(calon) do if (k.x - m.x)^2 + (k.z - m.z)^2 < 600^2 then ada = true end end
+                if not ada then calon[#calon + 1] = {x = m.x, z = m.z} end
+            end
+        end
+        local terbaik, skor
+        for _, k in ipairs(calon) do
+            local d = math.sqrt((k.x - bx)^2 + (k.z - bz)^2)
+            local s = d + 2 * panasDi(k.x, k.z, 2 * S)
+            if not skor or s < skor then terbaik, skor = k, s end
+        end
+        return terbaik
+    end
+    local function titikKumpul(t)
+        local dx, dz = t.x - bx, t.z - bz
+        local p = math.max(1, math.sqrt(dx * dx + dz * dz))
+        for _, mundur in ipairs({1000, 1200, 800, 1400, 600}) do
+            local m = math.min(mundur, p * .6)
+            local x, z = t.x - dx / p * m, t.z - dz / p * m
+            if lewat[idx(sel(x, z))] then return x, z end
+        end
+        local m = math.min(1000, p * .6)
+        return t.x - dx / p * m, t.z - dz / p * m
+    end
+    local function urusRencana(frame)
+        local r = rencanaKubu[sekutu]
+        if not r then
+            r = {fase = "siap", anggota = {}}
+            rencanaKubu[sekutu] = r
+        end
+        if r.frame == frame then return r end
+        r.frame = frame
+        local kuat, jumlah = kekuatanKubu()
+        if r.fase == "siap" then
+            local menit = frame / MENIT
+            local syarat = math.max(.7, 1.6 - math.max(0, menit - 8) * .05)
+            if menit >= 6 and jumlah >= 8 then
+                local t = pilihMarkas()
+                if t and kuat >= syarat * math.max(300, panasDi(t.x, t.z, 2 * S)) then
+                    r.x, r.z, r.unit = t.x, t.z, t.unit
+                    r.kx, r.kz = titikKumpul(t)
+                    r.fase, r.mulai, r.anggota = "kumpul", frame, {}
+                    -- Batas kumpul = perkiraan waktu tempuh (5 m/detik) x 1,3, 60-240 detik. Batas tetap 60 detik dari
+                    -- CircuitAI terlalu pendek untuk peta 12 km (uji Limestone: serbu dengan 0 unit di titik kumpul).
+                    local jarak = math.sqrt((r.kx - bx)^2 + (r.kz - bz)^2)
+                    r.batasKumpul = math.max(MENIT, math.min(4 * MENIT, jarak / 40 * 1.3 * Game.gameSpeed))
+                    sp.Echo(string.format("AI kubu %d: rencana serbu markas (%d, %d), kekuatan %.0f, syarat %.2f",
+                        sekutu, r.x, r.z, kuat, syarat))
+                end
+            end
+        elseif r.fase == "kumpul" or r.fase == "serbu" then
+            if not markasHidup(r) then
+                -- Sasaran hancur: langsung ke markas berikutnya, tetap menyerbu.
+                local t = pilihMarkas()
+                if t then
+                    r.x, r.z, r.unit = t.x, t.z, t.unit
+                    r.kx, r.kz = titikKumpul(t)
+                else
+                    r.fase = "siap"
+                    return r
+                end
+            end
+            local n, dekat, kuatAnggota = 0, 0, 0
+            for u in pairs(r.anggota) do
+                if sp.ValidUnitID(u) and not sp.GetUnitIsDead(u) then
+                    local x, _, z = sp.GetUnitPosition(u)
+                    n = n + 1
+                    kuatAnggota = kuatAnggota + nilaiUnit(u, sp.GetUnitDefID(u))
+                    if (x - r.kx)^2 + (z - r.kz)^2 < 600^2 then dekat = dekat + 1 end
+                else
+                    r.anggota[u] = nil
+                end
+            end
+            if r.fase == "kumpul" and n > 0 and (dekat >= .7 * n or frame - r.mulai > (r.batasKumpul or MENIT)) then
+                r.fase, r.kuatAwal = "serbu", kuatAnggota
+                sp.Echo(string.format("AI kubu %d: serbu markas, %d unit (%d di titik kumpul)", sekutu, n, dekat))
+            elseif r.fase == "serbu" and kuatAnggota < .4 * (r.kuatAwal or 0) then
+                r.fase, r.sampai, r.anggota = "pulih", frame + MENIT, {}
+                sp.Echo(string.format("AI kubu %d: serbuan gagal, pulih 60 detik", sekutu))
+            end
+        elseif r.fase == "pulih" and frame >= r.sampai then
+            r.fase = "siap"
+        end
+        return r
+    end
+    -- Ambil 80% unit tempur tim ini untuk rencana; sisanya kembali ke logika regu biasa.
+    local function ikutRencana(tempur, frame, bela)
+        local r = urusRencana(frame)
+        if r.fase ~= "kumpul" and r.fase ~= "serbu" then return tempur end
+        if bela and r.fase == "kumpul" and (bela.x - bx)^2 + (bela.z - bz)^2 < 900^2 then return tempur end
+        local sisa, milik = {}, {}
+        for _, u in ipairs(tempur) do
+            if r.anggota[u] then milik[#milik + 1] = u else sisa[#sisa + 1] = u end
+        end
+        local target = math.floor(#tempur * .8 + .5)
+        while #milik < target and #sisa > 0 do
+            local u = table.remove(sisa)
+            r.anggota[u] = true
+            milik[#milik + 1] = u
+        end
+        local dx, dz = r.x - bx, r.z - bz
+        local p = math.max(1, math.sqrt(dx * dx + dz * dz))
+        for n, u in ipairs(milik) do
+            local lama = tujuanUnit[u]
+            local geser = ((n - 1) % 7 - 3) * 60
+            local gx, gz = -dz / p * geser, dx / p * geser
+            if r.fase == "kumpul" then
+                local k = "kumpul" .. r.mulai
+                if not lama or lama.k ~= k or sp.GetUnitCommandCount(u) == 0 then
+                    local x, z = r.kx + gx, r.kz + gz
+                    sp.GiveOrderToUnit(u, CMD.FIGHT, {x, sp.GetGroundHeight(x, z), z}, 0)
+                    tujuanUnit[u] = {k = k, cmd = CMD.FIGHT}
+                end
+            else
+                local k = string.format("serbu%d:%d", r.x, r.z)
+                if not lama or lama.k ~= k or sp.GetUnitCommandCount(u) == 0 then
+                    if r.unit and sp.ValidUnitID(r.unit) then
+                        sp.GiveOrderToUnit(u, CMD.ATTACK, {r.unit}, 0)
+                    else
+                        local x, z = r.x + gx, r.z + gz
+                        sp.GiveOrderToUnit(u, CMD.FIGHT, {x, sp.GetGroundHeight(x, z), z}, 0)
+                    end
+                    tujuanUnit[u] = {k = k, cmd = CMD.ATTACK}
+                end
+            end
+        end
+        return sisa
+    end
+    function o.Rencana() local r = rencanaKubu[sekutu] return r and r.fase or "-" end
+
     function o.Perintah(pasukan, frame, bela)
         if not lewat then return end
         tujuanRebut = {}
@@ -529,6 +754,7 @@ function M.baru(c)
             else tempur[#tempur + 1] = u end
         end
 
+        if hancur then tempur = ikutRencana(tempur, frame, bela) end
         -- Regu: unit yang menuju sasaran sama (kunci sel) dihitung bersama; unit baru membentuk regu sendiri.
         local regu, dituju = {}, {}
         for _, u in ipairs(tempur) do
@@ -545,12 +771,12 @@ function M.baru(c)
                 x, z, kuat = x + ux * n, z + uz * n, kuat + n
             end
             x, z = x / kuat, z / kuat
-            local tx, tz, ni, nj, kunciT, sasaranUnit
+            local tx, tz, ni, nj, kunciT, sasaranUnit, menunggu
             if bela and (bela.x - x)^2 + (bela.z - z)^2 < 1500^2 then
                 tx, tz, ni, nj = bela.x, bela.z, 0, 0
             else
                 if hancur then
-                    tx, tz, ni, nj, kunciT, sasaranUnit = sasaranBangunan(x, z, kuat, dituju, kunciRegu)
+                    tx, tz, ni, nj, kunciT, sasaranUnit, menunggu = sasaranBangunan(x, z, kuat, dituju, kunciRegu)
                 else
                     tx, tz, ni, nj, kunciT = sasaranTitik(x, z, kuat, dituju, kunciRegu)
                 end
@@ -560,7 +786,7 @@ function M.baru(c)
             -- barisan menghadap musuh, kecuali regu jauh lebih kuat (> 2x panas musuh di sana). Bangunan baru diserang
             -- langsung setelah tidak ada tentara musuh di dekat regu.
             local tahan
-            if hancur and tx and (sp.GetModOptions().ai_tahan or "1") ~= "0" then
+            if hancur and tx and not nekat(kunciT) and (sp.GetModOptions().ai_tahan or "1") ~= "0" then
                 local ingat = c.otak.Ingatan()
                 local e, de
                 for _, m in pairs(ingat) do
@@ -586,6 +812,7 @@ function M.baru(c)
                     end
                 end
             end
+            if hancur and kunciT then catatTunggu(kunciT, menunggu or tahan ~= nil) end
             if tx then
                 -- Kunci regu = sel titik tujuan (juga saat menunggu di titik tunggu), supaya komitmen tidak hilang.
                 local kunci = tahan or kunciT or string.format("%d:%d", math.floor(tx / S), math.floor(tz / S))

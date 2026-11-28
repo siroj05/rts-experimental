@@ -10,6 +10,10 @@
 -- - RAID: berkumpul sampai `raidMin`, lalu sasaran musuh (ekonomi dulu) dengan panas musuh < kekuatan raid (2x dekat
 --   markas sendiri); kabur ke pangkalan kalau panas di posisinya >= kekuatannya.
 -- - Bangunan bersenjata dihitung 4,25x (static thr_mod CircuitAI).
+-- Perbandingan def lintas fraksi (bug 2026-11-28): AI F1 tidak mengenali HQ/pabrik F2 karena membandingkan dengan def
+-- fraksinya sendiri. sama(a, b) benar kalau kedua def berpadanan (gamedata/fraksi.lua).
+local dasarDef = VFS.Include("gamedata/fraksi.lua").dasar
+local function sama(a, b) return a ~= nil and b ~= nil and dasarDef[a] == dasarDef[b] end
 local sp = Spring
 local M = {}
 
@@ -192,7 +196,7 @@ function M.baru(c)
         local terbaik, d0
         for u, b in pairs(bangunan) do
             if panasMusuh(b.x, b.z) < kuat then
-                local w = b.def == c.hq and .35 or ((b.def == c.pabrik or b.def == c.pabrikRobot) and .6 or 1)
+                local w = sama(b.def, c.hq) and .35 or ((sama(b.def, c.pabrik) or sama(b.def, c.pabrikRobot)) and .6 or 1)
                 local d = jarak2(x, z, b.x, b.z) * w * w
                 if not d0 or d < d0 then terbaik, d0 = {u = u, x = b.x, z = b.z, def = b.def}, d end
             end
@@ -217,7 +221,7 @@ function M.baru(c)
             if not m.hilang and sp.IsPosInLos(m.x, sp.GetGroundHeight(m.x, m.z), m.z, sekutu) then
                 local ada = false
                 for _, b in pairs(bangunan) do
-                    if b.def == c.hq and jarak2(b.x, b.z, m.x, m.z) < 400^2 then ada = true end
+                    if sama(b.def, c.hq) and jarak2(b.x, b.z, m.x, m.z) < 400^2 then ada = true end
                 end
                 if not ada then m.hilang = true end
             end
@@ -334,7 +338,7 @@ function M.baru(c)
                             local terbaik, d0
                             for u2, b in pairs(bangunan) do
                                 if panasMusuh(b.x, b.z) < kuat then
-                                    local w = (b.def == c.ekstraktor or b.def == c.pompa) and .5 or 1
+                                    local w = (sama(b.def, c.ekstraktor) or sama(b.def, c.pompa)) and .5 or 1
                                     local d = jarak2(x, z, b.x, b.z) * w
                                     if not d0 or d < d0 then terbaik, d0 = {u = u2, x = b.x, z = b.z}, d end
                                 end

@@ -16,6 +16,10 @@
 --    Di sini tinggal pengali gaya main.
 -- 7. Belajar antarronde: gaya main dipilih per peta dari statistik `gamedata/belajar_ai.lua` (UCB1). Statistik
 --    diperbarui oleh tools/latih_ai.py dari hasil ronde headless. Baris log `AI GAYA tim=<t> gaya=<g>`.
+-- Perbandingan def lintas fraksi (bug 2026-11-28): AI F1 tidak mengenali HQ/pabrik F2 karena membandingkan dengan def
+-- fraksinya sendiri. sama(a, b) benar kalau kedua def berpadanan (gamedata/fraksi.lua).
+local dasarDef = VFS.Include("gamedata/fraksi.lua").dasar
+local function sama(a, b) return a ~= nil and b ~= nil and dasarDef[a] == dasarDef[b] end
 local sp = Spring
 local M = {}
 
@@ -226,9 +230,9 @@ function M.baru(c)
         -- Bangunan musuh hanya diserang saat unggul jauh (mode tekan); selain itu pasukan fokus ke titik.
         for u, b in pairs(mode == "tekan" and bangunan or {}) do
             local nilai
-            if b.def == c.hq then nilai = mode == "tekan" and 210 or (mode == "nekat" and 40 or 70)
-            elseif b.def == c.pabrik or b.def == c.pabrikRobot then nilai = 80
-            elseif b.def == c.ekstraktor or b.def == c.pompa then nilai = 62
+            if sama(b.def, c.hq) then nilai = mode == "tekan" and 210 or (mode == "nekat" and 40 or 70)
+            elseif sama(b.def, c.pabrik) or sama(b.def, c.pabrikRobot) then nilai = 80
+            elseif sama(b.def, c.ekstraktor) or sama(b.def, c.pompa) then nilai = 62
             else nilai = 30 end
             if mode == "ekspansi" then nilai = nilai * .5 end
             daftar[#daftar + 1] = {x = b.x, z = b.z, nilai = nilai * bobotDendam(b.t), kunci = "b" .. u, unit = u, t = b.t}
