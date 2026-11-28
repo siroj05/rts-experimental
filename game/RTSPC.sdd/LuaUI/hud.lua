@@ -216,7 +216,7 @@ function hud.AttackFeedback(params, options)
     local dipilih = sp.GetSelectedUnits()
     for _, id in ipairs(dipilih) do
         local def = UnitDefs[sp.GetUnitDefID(id)]
-        if def and def.name == "artileri_ringan" then
+        if def and (def.customParams.dasar or def.name) == "artileri_ringan" then
             local x, _, z = sp.GetUnitPosition(id)
             if x and (tx - x)^2 + (tz - z)^2 < minArtileri^2 then
                 local teks = #dipilih == 1 and "Target is inside artillery minimum range (%d m)."
@@ -229,7 +229,7 @@ function hud.AttackFeedback(params, options)
 end
 
 local function batasSenjata(def)
-    local jarak, jarakMin = 0, def.name == "artileri_ringan" and minArtileri or 0
+    local jarak, jarakMin = 0, (def.customParams.dasar or def.name) == "artileri_ringan" and minArtileri or 0
     for _, slot in ipairs(def.weapons) do
         local weapon = WeaponDefs[slot.weaponDef]
         jarak = math.max(jarak, weapon.range)
@@ -452,6 +452,16 @@ end
 -- Simbol tipe = ikon strategis zoom jauh (icons/, tools/buat_ikon.py), jadi kartu dan peta memakai bahasa yang sama:
 -- Medium Tank persegi + laras, Light Tank berongga, Destroyer segitiga, pengintai chevron, artileri bulat + busur.
 local ikonUnit = VFS.Include("gamedata/ikon_unit.lua")
+-- Fraksi 2 (gamedata/fraksi2.lua): peran dan simbol mengikuti padanan Fraksi 1. Julukan Jerman (sandi) khusus
+-- Fraksi 1, jadi kartu Fraksi 2 memakai nama Inggris.
+for _, ud in pairs(UnitDefs) do
+    local dasar = ud.customParams.dasar
+    if dasar then
+        peran[ud.name] = peran[ud.name] or peran[dasar]
+        ikonUnit[ud.name] = ikonUnit[ud.name] or ikonUnit[dasar]
+    end
+end
+peran.heavy_tank_f2, ikonUnit.heavy_tank_f2 = "Assault tank", "tank"
 local function simbol(def, x, y, side, c)
     local nama = def and ikonUnit[def.name]
     if not nama then return end

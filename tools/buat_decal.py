@@ -11,8 +11,8 @@ Keluaran ada di game/RTSPC.sdd/unittextures/:
 - tapak_tanah_normal.tga: normal ruang tangen, A = tinggi.
 
 2. Bekas kawah: game/RTSPC.sdd/bitmaps/scars/kawah{1,2}.tga + _normal.tga (gamedata/resources.lua).
-   Pusatnya gosong, dikelilingi cincin tanah cokelat teraduk dan gumpalan yang terlempar. Lubangnya sendiri
-   dibuat oleh deformasi heightmap (craterMult), jadi decal ini cuma memberi warna dan detail.
+   Gaya kawah bulan: dasar gelap, dinding, bibir terangkat yang terang, selimut lontaran, dan sinar. Lubangnya
+   sendiri dibuat oleh deformasi heightmap (craterMult), decal ini memberi warna dan bentuk halus lewat normal map.
 
     python tools/buat_decal.py   -> + .cache/tapak.png, .cache/kawah.png (pratinjau di atas rumput)
 """
@@ -73,6 +73,16 @@ def buat():
 
 
 def kawah(seed, nama):
+    """Kawah gaya bulan (user 2026-11-27: "stylenya kaya kawah dibulan").
+
+    Jari-jari dinormalkan ke tepi decal (r = 1). Decal ±2,2x diameter lubang, jadi bibir kawah ada di r ±0,45.
+    - Dasar (r < 0,28): datar, gelap, bekas gosong.
+    - Dinding (0,28-0,45): naik curam. Bentuknya dibawa normal map, karena heightmap 1 m terlalu kasar untuk
+      kawah 3-6 m.
+    - Bibir (r ±0,47): cincin terangkat, tanah kapur segar yang paling terang.
+    - Selimut lontaran (0,47-0,78): bergelombang, memudar ke luar.
+    - Sinar (sampai r = 1): lajur tipis terang memancar dari pusat.
+    """
     rng = np.random.default_rng(seed)
     y, x = (np.mgrid[0:UK, 0:UK] + .5) / UK * 2 - 1
     r0 = np.hypot(x, y)
@@ -80,29 +90,62 @@ def kawah(seed, nama):
     tepi_n = kecil(D.spektral(rng, 1.3, 3, 30))
     sedang = kecil(D.spektral(rng, 1.1, 6, 80))
     halus = kecil(D.spektral(rng, .5, 50, 300))
-    # Lontaran radial: lajur memanjang ke luar dengan panjang acak
-    titik = rng.random(48)
-    lajur = np.interp(sudut, np.linspace(-np.pi, np.pi, 49), np.r_[titik, titik[0]])
-    r = r0 * (1 + tepi_n * .12) / (.78 + lajur * .22)
-    f1, f2, idx = D.voronoi(rng, 70)
-    acak = np.random.default_rng(seed + 1).random(70 * 70)[idx]
-    gumpal = kecil(np.clip(1 - f1 / .45, 0, 1) * (acak > .6))
-    gumpal = gumpal * np.clip((r - .35) / .2, 0, 1) * np.clip((1.05 - r) / .25, 0, 1)
+    r = r0 * (1 + tepi_n * .05)  # bibir sedikit tidak bulat
 
-    gosong = np.clip((.42 - r) / .3, 0, 1) ** 1.3
-    teraduk = np.clip(1 - np.abs(r - .55) / .32, 0, 1)
-    tanah = np.array([96, 76, 56], np.float32) * (1 + sedang[..., None] * .08 + halus[..., None] * .05)
-    hitam = np.array([30, 27, 24], np.float32)
-    warna = tanah + (hitam - tanah) * gosong[..., None] * .85
-    warna = warna + gumpal[..., None] * np.array([28, 24, 18])
-    a = np.clip(np.clip((.8 - r) / .22, 0, 1) + gumpal * .7, 0, 1) * np.clip((1.0 - r) / .15, 0, 1)
-    a = np.clip(a * (.9 + sedang * .1), 0, .95)
+    # Profil tinggi: dasar -1, bibir +0,35, selimut turun ke 0
+    dasar, bibir = .28, .47
+    dinding = np.clip((r - dasar) / (bibir - dasar), 0, 1)
+    h = -1 + 1.35 * dinding ** 1.6
+    luar = np.clip((r - bibir) / .33, 0, 1)
+    h = np.where(r > bibir, .35 * (1 - luar) ** 2, h)
+    # Gumpalan lontaran di selimut
+    f1, f2, idx = D.voronoi(rng, 60)
+    acak = np.random.default_rng(seed + 1).random(60 * 60)[idx]
+    gumpal = kecil(np.clip(1 - f1 / .5, 0, 1) * (acak > .55)) * np.clip(1 - np.abs(r - .6) / .2, 0, 1)
+    # Bubuk pasir di pinggiran (user 2026-11-27: "pinggirannya kasih bubuk pasir dikit biar ga flat"): butir halus
+    # berbintik dengan tepi tak beraturan, makin jarang ke luar.
+    butir_n = np.random.default_rng(seed + 2).random((UK, UK))
+    sebar = kecil(D.spektral(rng, 1.2, 4, 50))
+    jangkau = .9 + sebar * .08 + tepi_n * .06  # batas luar bubuk bergelombang
+    padat = np.clip((jangkau - r) / (jangkau - bibir), 0, 1) ** 1.4 * (r > bibir - .02)
+    padat = padat * np.clip(.55 + sebar * .5, 0, 1)
+    pasir = (butir_n < padat * 1.1).astype(np.float32) * np.clip(.6 + butir_n * .8, 0, 1)
+    pasir = np.maximum(pasir, padat * .5)  # lapisan debu tipis di bawah butirnya
+    h = h + gumpal * .12 + sedang * .03 + halus * .015 + pasir * .04
+
+    # Sinar: 9-14 lajur sempit dengan panjang acak
+    n_sinar = rng.integers(9, 15)
+    arah = rng.uniform(-np.pi, np.pi, n_sinar)
+    sinar = np.zeros_like(r)
+    for s0, panjang, lebar in zip(arah, rng.uniform(.75, 1.0, n_sinar), rng.uniform(.035, .07, n_sinar)):
+        beda = np.abs((sudut - s0 + np.pi) % (2 * np.pi) - np.pi)
+        sinar = np.maximum(sinar, np.clip(1 - beda / lebar, 0, 1) * np.clip((panjang - r) / .2, 0, 1)
+                           * np.clip((r - bibir) / .08, 0, 1))
+    sinar = sinar * np.clip(.7 + halus * .6, 0, 1)
+
+    # Warna sRGB: dasar gosong gelap, bibir dan lontaran kapur terang, tanah teraduk di antaranya
+    gelap = np.array([46, 42, 38], np.float32)
+    tanah = np.array([104, 92, 76], np.float32)
+    kapur = np.array([176, 168, 150], np.float32)
+    t_dinding = dinding[..., None]
+    warna = gelap + (tanah - gelap) * t_dinding
+    segar = np.clip(1 - np.abs(r - bibir) / .1, 0, 1) * .8 + (1 - luar) * (r > bibir) * .45 + sinar * .6
+    warna = warna + (kapur - warna) * np.clip(segar, 0, 1)[..., None]
+    warna = warna * (1 + sedang[..., None] * .07 + halus[..., None] * .05)
+    pasir_w = np.array([168, 150, 118], np.float32) * (.85 + butir_n[..., None] * .3)
+    luar_bibir = (r > bibir + .03)[..., None]
+    warna = np.where(luar_bibir, warna + (pasir_w - warna) * (pasir * .8)[..., None], warna)
+
+    a = np.where(r < bibir + .05, 1.0, np.clip(1 - luar * 1.1, 0, 1) ** 1.5)
+    a = np.maximum(a, sinar * .75)
+    a = np.maximum(a, pasir * .85)
+    a = np.clip(a * np.clip((1.0 - r0) / .06, 0, 1) * (.92 + sedang * .06), 0, .97)
+
     rgba = np.concatenate([np.clip(warna, 0, 255), (a * 255)[..., None]], -1)
     keluar = ROOT / "game/RTSPC.sdd/bitmaps/scars"
     keluar.mkdir(parents=True, exist_ok=True)
     Image.fromarray((rgba + .5).astype(np.uint8), "RGBA").save(keluar / f"{nama}.tga")
-    h = sedang * .4 + halus * .3 + gumpal * 2.2 + teraduk * sedang * .6
-    n = D.ke_normal(h, 1.5)
+    n = D.ke_normal(h, 40)
     nt = np.concatenate([n * .5 + .5, a[..., None]], -1)
     Image.fromarray((nt * 255 + .5).astype(np.uint8), "RGBA").save(keluar / f"{nama}_normal.tga")
     return warna, a, n

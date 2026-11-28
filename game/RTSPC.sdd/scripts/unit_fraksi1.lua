@@ -1,7 +1,17 @@
 local sp = Spring
 local def = UnitDefs[sp.GetUnitDefID(unitID)]
-local rig = VFS.Include("gamedata/rig_fraksi1.lua")[def.name]
-local distant = def.name == "artileri_ringan"
+local rigF1 = VFS.Include("gamedata/rig_fraksi1.lua")
+local rig = rigF1[def.name] or VFS.Include("gamedata/rig_fraksi2.lua")[def.name]
+-- Batas elevasi untuk boleh menembak. Laras model tetap dibatasi rig sendiri (rig.min/max), tetapi Fraksi 2 memakai
+-- batas tembak padanannya di Fraksi 1 supaya statistik cermin (uji 2026-11-28: rig Heavy -3° dan Medium F2 -5°
+-- menolak sasaran di bawah lereng, -8,5°). Medium Tank Fraksi 1 memakai ±10° di scripts/medium_tank.lua.
+local batasTembak = rig
+local dasarNama = def.customParams.dasar or (def.name == "heavy_tank_f2" and "medium_tank")
+if dasarNama then batasTembak = rigF1[dasarNama] or {min = -10, max = 10} end
+if dasarNama == "medium_tank" then batasTembak = {min = -10, max = 10} end
+local tembakMin = math.rad(batasTembak.min or -20)
+local tembakMax = math.rad(batasTembak.max or 30)
+local distant = (def.customParams.dasar or def.name) == "artileri_ringan"
 local map = sp.GetUnitPieceMap(unitID)
 local turret = map.turret and piece("turret")
 -- Meriam tetap (Tank Destroyer): skrip memutar badan yang diam ke sasaran dan baru menembak setelah lurus ±3°.
@@ -12,10 +22,24 @@ local lontar = putarBadan and VFS.Include("gamedata/lontar.lua")
 local barrel = map.laras and piece("laras")
 local nano = map.nano and piece("nano")
 local muzzle = map.moncong and piece("moncong")
-local second = map.moncong_2 and piece("moncong_2")
+-- Laras tambahan (moncong_2, moncong_3, ...) dipakai bergantian: tiap akhir burst (Rocket Robot) atau tiap
+-- tembakan kalau customParams.ganti_moncong = "tembak" (Heavy Tank Fraksi 2).
+local muzzles = {muzzle}
+while map["moncong_" .. (#muzzles + 1)] do muzzles[#muzzles + 1] = piece("moncong_" .. (#muzzles + 1)) end
+local gantiTiapTembak = def.customParams.ganti_moncong == "tembak"
+local muzzleIndex = 1
 local nextMuzzle = muzzle
+local function gantiMoncong()
+    if #muzzles < 2 then return end
+    muzzleIndex = muzzleIndex % #muzzles + 1
+    nextMuzzle = muzzles[muzzleIndex]
+end
 local turretSpeed = math.rad(tonumber(def.customParams.turret_speed) or 143)
 local barrelSpeed = math.rad(60)
+-- Laras yang dimodelkan sudah terangkat (Artileri F2: rig.netral 35,79°). Turn memakai selisih terhadap sudut ini.
+local netral = math.rad(rig.netral or 0)
+local function elevasiLaras(sudut) return -(sudut - netral) end
+local idleLaras = distant and math.rad(math.max(15, rig.min or 15)) or netral
 local axes = {x_axis, y_axis, z_axis}
 local satuPutaran = 65536
 local lurus = satuPutaran * 3 / 360
@@ -152,6 +176,7 @@ function script.Create()
         for i = 2, #side.lane do Hide(side.lane[i]) end
     end
     if nano then sp.SetUnitNanoPieces(unitID, {nano}) end
+    if barrel and rig.netral then Turn(barrel, x_axis, elevasiLaras(idleLaras)) end
     StartThread(gerak)
 end
 
@@ -169,7 +194,7 @@ local function kembali(weapon)
         idle = target and target ~= 0 and 0 or idle + 1
     end
     if turret then Turn(turret, y_axis, 0, turretSpeed) end
-    if barrel then Turn(barrel, x_axis, distant and -math.rad(15) or 0, barrelSpeed) end
+    if barrel then Turn(barrel, x_axis, elevasiLaras(idleLaras), barrelSpeed) end
     aimWatch = nil
 end
 
@@ -191,14 +216,14 @@ function script.AimWeapon(weapon, heading, pitch)
     local min = math.rad(rig.min or -20)
     local max = math.rad(rig.max or 30)
     if turret then Turn(turret, y_axis, heading, turretSpeed) end
-    if barrel then Turn(barrel, x_axis, -math.max(min, math.min(max, pitch)), barrelSpeed) end
+    if barrel then Turn(barrel, x_axis, elevasiLaras(math.max(min, math.min(max, pitch))), barrelSpeed) end
     if not aimWatch and (turret or barrel) then
         aimWatch = true
         StartThread(kembali, weapon)
     end
     if turret then WaitForTurn(turret, y_axis) end
     if barrel then WaitForTurn(barrel, x_axis) end
-    return pitch >= min and pitch <= max
+    return pitch >= tembakMin and pitch <= tembakMax
 end
 
 local function recoil()
@@ -211,10 +236,11 @@ end
 
 function script.Shot()
     if barrel then StartThread(recoil) end
+    if gantiTiapTembak then gantiMoncong() end
 end
 
 function script.EndBurst()
-    if second then nextMuzzle = nextMuzzle == muzzle and second or muzzle end
+    if not gantiTiapTembak then gantiMoncong() end
 end
 
 function script.Killed() return 1 end

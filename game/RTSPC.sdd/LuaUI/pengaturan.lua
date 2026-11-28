@@ -9,7 +9,7 @@ local function persen(v) return string.format("%d%%", v) end
 local baris = {
     {label = "Master Volume", kunci = "snd_volmaster", jenis = "int", min = 0, maks = 100, langkah = 10, bawaan = 100, tampil = persen},
     {label = "Battle Volume", kunci = "snd_volbattle", jenis = "int", min = 0, maks = 100, langkah = 10, bawaan = 100, tampil = persen},
-    {label = "Unit Icons", kunci = "UnitIconDist", jenis = "int", pilihan = {30, 50, 80, 120, 10000}, bawaan = 50,
+    {label = "Unit Icons", kunci = "UnitIconDist", jenis = "int", pilihan = {30, 50, 80, 120, 10000}, bawaan = 120, -- ✅ user 2026-11-26: Very Far (±411 m kamera-unit)
         tampil = function(v) return ({[30] = "Near", [50] = "Normal", [80] = "Far", [120] = "Very Far", [10000] = "Off"})[v] or tostring(v) end,
         terapkan = function(v) sp.SendCommands("disticon " .. v) end},
     {label = "Shadows", kunci = "Shadows", jenis = "int", pilihan = {0, 1}, bawaan = 1,

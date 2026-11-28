@@ -69,7 +69,7 @@ Regresi: `uji_kontrol.py` 7/7 lulus, `uji_balance.py --seed 1` 7/7 lulus.
 
 **8. UI.**
 - Health bar di atas unit (`LuaUI/batang_hp.lua`): tampil untuk unit rusak, terpilih, atau sedang dibangun (bar biru = progres); hijau/kuning/merah; disembunyikan saat unit menjadi ikon.
-- Ikon strategis (`tools/buat_ikon.py` → `gamedata/icontypes.lua`, `icons/*.png`, `gamedata/ikon_unit.lua`): 12 bentuk orisinal (tank, tank ringan, destroyer, pengintai, artileri, robot, roket, insinyur, markas, pabrik, menara, bangunan), diwarnai warna tim. `UnitIconDist = 50` di `config/windows-defaults.cfg` (bawaan Recoil 200 tidak pernah menampilkan ikon di peta kecil; jarak dikali radius unit).
+- Ikon strategis (`tools/buat_ikon.py` → `gamedata/icontypes.lua`, `icons/*.png`, `gamedata/ikon_unit.lua`): 12 bentuk orisinal (tank, tank ringan, destroyer, pengintai, artileri, robot, roket, insinyur, markas, pabrik, menara, bangunan), diwarnai warna tim. `UnitIconDist = 120` (Very Far, ✅ user 2026-11-26; sebelumnya 50) di `config/windows-defaults.cfg` (bawaan Recoil 200 tidak pernah menampilkan ikon di peta kecil; jarak dikali radius unit).
 - Belum: notifikasi (diserang, unit selesai), penanda tim selain warna.
 
 **9. Pengaturan.** Menu jeda (Esc) punya **Settings**: Master Volume, Battle Volume, Unit Icons (Near/Normal/Far/Very Far/Off), Shadows, Zoom Speed (tanda `ScrollWheelSpeed` dipertahankan supaya arah zoom tidak terbalik), Health Bars. Disimpan ke `springsettings.cfg`. Diuji lewat `tools/uji_visual/pengaturan.lua` (nilai berubah dan tersimpan).

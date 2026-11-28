@@ -42,7 +42,7 @@ function M.baru(c)
     local function jarak2(ax, az, bx2, bz2) return (ax - bx2)^2 + (az - bz2)^2 end
     local function peran(u)
         local def = sp.GetUnitDefID(u)
-        return def and PERAN[UnitDefs[def].name] or "assault"
+        return def and PERAN[UnitDefs[def].customParams.dasar or UnitDefs[def].name] or "assault"
     end
 
     function o.Mulai(s, x, z, m)

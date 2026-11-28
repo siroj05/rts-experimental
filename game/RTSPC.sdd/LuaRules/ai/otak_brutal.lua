@@ -12,8 +12,8 @@
 --    musuh. Pasukan utama berkumpul dulu lalu menyerbu sebagai satu gumpalan, hanya kalau unggul kekuatan di sana.
 --    Serbuan yang gagal (kekuatan tinggal < 45%) diingat sebagai penalti sasaran itu.
 -- 5. Mundur: unit HP < 30% pulang ke markas untuk diperbaiki insinyur, kembali setelah HP > 85%.
--- 6. Belajar dalam ronde: tiap jenis unit kita dinilai dari kerusakan yang diberikan (dalam biaya musuh) dibanding
---    kerugiannya; bobot produksi dikalikan sesuai efektivitas (0,6–1,8×).
+-- 6. Belajar dalam ronde: dipindah ke LuaRules/ai/belajar_unit.lua (2026-11-26) supaya semua tingkat ikut belajar.
+--    Di sini tinggal pengali gaya main.
 -- 7. Belajar antarronde: gaya main dipilih per peta dari statistik `gamedata/belajar_ai.lua` (UCB1). Statistik
 --    diperbarui oleh tools/latih_ai.py dari hasil ronde headless. Baris log `AI GAYA tim=<t> gaya=<g>`.
 local sp = Spring
@@ -184,22 +184,13 @@ function M.baru(c)
         end
     end
 
-    -- 6. Pengali bobot produksi dari efektivitas jenis unit dalam ronde ini.
+    -- 6. Pengali bobot produksi dari gaya main (efektivitas unit ada di belajar_unit.lua).
     function o.KaliProduksi(def)
         local k = 1
         if def == c.artileri or not c.tempurSet[def] then k = 1
         elseif c.berat[def] then k = g.berat or 1
         else k = (UnitDefs[def].name:find("^robot") and (g.robot or 1)) or 1 end
-        if not tingkat.belajar then return k end
-        local jumlah, total = 0, 0
-        for _, e in pairs(efek) do
-            total = total + (e.beri + 150) / (e.rugi + 150)
-            jumlah = jumlah + 1
-        end
-        local e = efek[def]
-        if not e or jumlah < 2 then return k end
-        local rasio = ((e.beri + 150) / (e.rugi + 150)) / (total / jumlah)
-        return k * math.max(.6, math.min(1.8, rasio ^ .6))
+        return k  -- efektivitas unit: belajar_unit.lua
     end
 
     local function kekuatanDekat(x, z, r, frame)

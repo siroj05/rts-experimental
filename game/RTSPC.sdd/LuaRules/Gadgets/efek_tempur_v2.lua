@@ -7,8 +7,9 @@ local sp = Spring
 local muzzleEvent, deathEvent, wreckEvent, removeEvent = "v2_muzzle", "v2_death", "v2_wreck", "v2_wreck_remove"
 local impactEvent = "v2_impact"
 local function skala(def)
-    if def.name == "tank_ringan" then return .72 end
-    if def.name == "medium_tank" then return 1 end
+    local nama = def.customParams.dasar or def.name
+    if nama == "tank_ringan" then return .72 end
+    if nama == "medium_tank" then return 1 end
     return math.max(.30, math.min(2.6, math.max(def.xsize, def.zsize) * Game.squareSize / 48))
 end
 
@@ -22,7 +23,7 @@ if gadgetHandler:IsSyncedCode() then
         for id, def in pairs(WeaponDefs) do
             local style = def.customParams.fx_jejak
             if style then
-                local small = style == "kecil" or style == "roket"
+                local small = style == "kecil" or style == "roket" or style == "roket_kecil"
                 muzzleWeapons[id] = (small and .32) or (id == lightCannon and .65) or 1
                 Script.SetWatchProjectile(id, true)
             end
@@ -68,6 +69,7 @@ if gadgetHandler:IsSyncedCode() then
 end
 
 local clouds, fires, sparks, trails, wrecks = {}, {}, {}, {}, {}
+local suara = VFS.Include("LuaRules/Configs/suara_tempur.lua").main
 local cloudShader, fireShader, fireUniform, sphere
 local tau = math.pi * 2
 local elmo, fps = 8, Game.gameSpeed
@@ -97,6 +99,51 @@ local function cloud(t, life, x, y, z, vx, vy, vz, s, alpha, tone, seed, grow, l
         size=s, alpha=alpha, tone=tone, seed=seed, growth=grow, low=low, drift=drift, easeGrowth=easeGrowth})
 end
 
+-- Kepulan asap meriam (demo Blender blender-assets/fraksi-1/efek/asap-meriam, profil-integrasi-v1/v2.json): didorong
+-- sejauh (bx, by, bz) dengan ease-out selama `dorong` detik, lalu hanyut (vx, vy, vz) per detik. Putih (tone 2).
+local function kepulan(t, life, x, y, z, bx, by, bz, dorong, vx, vy, vz, s, alpha, seed, grow)
+    add(clouds, 2200, {born=t, life=life, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz, bx=bx, by=by, bz=bz, dorong=dorong,
+        size=s, alpha=alpha, tone=2, seed=seed, growth=grow, drift=true, easeGrowth=true})
+end
+
+-- Asap tembakan meriam (✅ user 2026-11-28): semburan depan, opsional semburan kiri-kanan (v1), lalu asap tipis dari
+-- moncong. Satuan demo meter; m = elmo per meter x skala senjata. Demo memakai 28 kepulan depan; game 16 kepulan yang
+-- lebih besar dan lebih pekat (billboard lebih transparan daripada volume Blender; uji Recoil 2026-11-28).
+local function asapMeriam(r, t, x, y, z, dx, dy, dz, k, samping)
+    local m = k * elmo
+    local angin = {.6 * m, .15 * m}
+    local hl = math.sqrt(dx*dx + dz*dz)
+    local kx, kz = hl > 0 and dz/hl or 1, hl > 0 and -dx/hl or 0 -- kanan, mendatar
+    local ax, ay, az = -kz*dy, kz*dx - kx*dz, kx*dy -- atas = kanan x depan
+    for i = 0, 15 do
+        local u = i / 15
+        local jauh = (.4 + 3.4 * u^.8 + r(-.3, .3)) * m
+        local a, c = r(0, tau), math.rad(r(0, 18)) * math.sqrt(r(0, 1))
+        local sc, ca = math.sin(c), math.cos(c)
+        local fx = dx*ca + (kx*math.cos(a) + ax*math.sin(a)*.6)*sc
+        local fy = dy*ca + (ay*math.sin(a)*.6)*sc
+        local fz = dz*ca + (kz*math.cos(a) + az*math.sin(a)*.6)*sc
+        local hidup = r(2.5, 4.5)
+        kepulan(t + r(0, .04), hidup, x, y, z, fx*jauh, fy*jauh, fz*jauh, .35,
+            angin[1], r(.25, .5)*m, angin[2], r(.4, .6)*m*(.8 + .6*u), .85, r(0, 50), r(4, 5))
+    end
+    if samping then
+        for _, sisi in ipairs({-1, 1}) do
+            for _ = 1, 3 do
+                local jauh = r(.8, 1.6) * m
+                local mundur = r(-.35, .1)
+                local fx, fz = kx*sisi + dx*mundur, kz*sisi + dz*mundur
+                kepulan(t, r(2, 3.5), x, y, z, fx*jauh, r(-.05, .25)*jauh, fz*jauh, .25,
+                    angin[1], r(.2, .4)*m, angin[2], .5*m, .8, r(0, 50), 3.5)
+            end
+        end
+    end
+    for i = 0, 5 do
+        kepulan(t + .33 + i*.25, r(1.8, 2.6), x + dx*.1*m, y + dy*.1*m, z + dz*.1*m, 0, 0, 0, 1,
+            angin[1]*.8, .45*m, angin[2]*.8, .25*m, .55*(1 - i/7), r(0, 50), 5.6)
+    end
+end
+
 local function fire(t, life, x, y, z, vx, vy, vz, s, kind, seed, drift, instant)
     add(fires, 256, {born=t, life=life, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz,
         size=s, kind=kind, seed=seed, drift=drift, instant=instant})
@@ -115,7 +162,7 @@ local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame, weapon, projectile)
         sp.UnitRendering.SetProjectileLuaDraw(projectile, true)
     end
     if params.suara_tembak then
-        sp.PlaySoundFile(params.suara_tembak, tonumber(params.volume_tembak) or 1, x, y, z, "battle")
+        suara(params.suara_tembak, tonumber(params.volume_tembak) or 1, x, y, z)
     end
     if not cloudShader then return end
     trails[projectile] = {frame=frame, x=x, y=y, z=z, carry=0, atMuzzle=true}
@@ -125,23 +172,27 @@ local function muzzle(_, x, y, z, dx, dy, dz, k, id, frame, weapon, projectile)
         fire(t, .10, x + dx*d, y + dy*d, z + dz*d, dx*3*s, dy*3*s, dz*3*s,
             (.4 + (j > 1 and .3 - j*.045 or 0)) * s * 1.25, 0, r(0, 50), true, true)
     end
-    for _ = 1, 11 do
-        local d, lateral = r(0, .65)*s, r(-.36, .36)*s
-        local speed, side = r(.7, 1.8)*s, r(-.9, .9)*s
-        cloud(t+r(0,.06), r(.9,1.7), x+dx*d+dz*lateral, y+dy*d, z+dz*d-dx*lateral,
-            dx*speed+dz*side, r(.6,1.5)*s, dz*speed-dx*side, r(.45,.85)*s, .48, 0, r(0,50), 2.5)
-    end
-    if k > .4 and y - sp.GetGroundHeight(x, z) < 40 then
-        for i = 1, 24 do
-            local a = i / 24 * tau + r(-.1, .1)
-            local cx, cz = math.cos(a), math.sin(a)
-            local d, v, fwd = r(.2,.5)*s, r(1.9,3.2)*s, r(.25,.95)*s
-            local px, pz = x + cx*d, z + cz*d
-            cloud(t+r(.02,.08), r(.85,1.45), px, 0, pz, cx*v+dx*fwd, 0, cz*v+dz*fwd,
-                r(.35,.65)*s, .42, 1, r(0,50), 2.5, true)
+    local gaya = params.fx_jejak
+    if gaya == "meriam" or gaya == "artileri" then
+        -- Artileri selalu tanpa semburan samping (v2); meriam lain acak v1/v2 per tembakan. Tanpa debu di bawah
+        -- moncong (✅ user 2026-11-28: "gaperlu ada asep dibawah meriam saat nembak").
+        asapMeriam(r, t, x, y, z, dx, dy, dz, k, gaya ~= "artileri" and r(0, 1) < .5)
+    elseif gaya == "roket_kecil" then
+        -- 8 roket per tembakan: kepulan peluncuran kecil saja supaya batas kepulan tidak cepat penuh.
+        for _ = 1, 3 do
+            local maju, sisi = r(2, 5), r(-2.5, 2.5) -- elmo
+            kepulan(t + r(0, .03), r(.6, 1.0), x, y, z, dx*maju - dz*sisi, r(0, 1.5), dz*maju + dx*sisi, .2,
+                0, 2.4, 0, r(2.5, 4), .45, r(0, 50), 2.2)
+        end
+    else
+        for _ = 1, 11 do
+            local d, lateral = r(0, .65)*s, r(-.36, .36)*s
+            local speed, side = r(.7, 1.8)*s, r(-.9, .9)*s
+            cloud(t+r(0,.06), r(.9,1.7), x+dx*d+dz*lateral, y+dy*d, z+dz*d-dx*lateral,
+                dx*speed+dz*side, r(.6,1.5)*s, dz*speed-dx*side, r(.45,.85)*s, .48, 0, r(0,50), 2.5)
         end
     end
-    for _ = 1, 9 do
+    for _ = 1, gaya == "roket_kecil" and 3 or 9 do
         local speed, side = r(7,15)*s, r(-2,2)*s
         spark(t, r(.08,.18), x,y,z, dx*speed+dz*side, dy*speed+r(-.4,1.2)*s, dz*speed-dx*side,
             .035*s, 0, true)
@@ -151,7 +202,7 @@ end
 -- V2 FxHancur layers. We sample the fireballs' path to leave drifting white smoke.
 local function death(_, x, y, z, k, id, frame)
     if not visible(x, y+4, z) then return end
-    sp.PlaySoundFile("sounds/unit-hancur-v2.ogg", .5, x, y, z, "battle")
+    suara("sounds/unit-hancur-v2.ogg", 4, x, y, z) -- 4/8 = gain .5 seperti sebelumnya
     if not cloudShader then return end
     local r, t, s = rng(id * 7919 + frame), waktu(frame), k * elmo
     local cy = y + 1.1*s
@@ -218,9 +269,18 @@ local function removeWreck(_, id) wrecks[id] = nil end
 
 local profil = {
     -- FxMeriam.CannonTrail di V2. Ukuran, jarak, dan simpangan dikali 8 elmo/m.
-    meriam = {.6*elmo, .19, .14*elmo, .42, setback=.62*elmo, delay=.04},
-    kecil = {5, .15, .8, .28},
-    artileri = {4.8, 2.45, 5.6, .64}, roket = {4.4, .64, 1.8, .55},
+    -- Jejak peluru (✅ user 2026-11-28: "semua peluru ada jejak asepnya setelah keluar dari meriam", "peluru kecil
+    -- jejak asepnya cepat dan samar"). Meriam dari demo Blender: kepulan putih tiap 0,5 m, 0,3 m tumbuh ke ±1,3 m,
+    -- bertahan ±1,6 detik. {jarak antar kepulan elmo, hidup detik, ukuran elmo, alpha}
+    meriam = {.5*elmo, 1.6, .45*elmo, .62, setback=.62*elmo, delay=.04, tone=2, grow=3},
+    kecil = {3, .45, 1.2, .2, tone=2, grow=2},
+    artileri = {4.8, 2.45, 5.6, .64, tone=2},
+    -- Roket: asap V2 (1,8 elmo, 0,64 detik) praktis tak terlihat dari kamera RTS. Diperbesar (🟡 2026-11-28, laporan
+    -- user "asepnya ga keliatan"): puff 6 elmo tumbuh 3,5x, bertahan 1,5 detik. Warna putih (tone 2, ✅ user
+    -- 2026-11-28: "buat asepnya warna putih biar jejaknya keliatan jelas").
+    roket = {3.5, 1.5, 6, .65, tone=2},
+    -- Rocket Pods Fraksi 2: roket kecil, asap lebih tipis dan lebih singkat.
+    roket_kecil = {3, .9, 3.2, .38, tone=2, grow=2.2},
 }
 
 local profilSenjata = {}
@@ -270,8 +330,8 @@ local function jejak(frame)
                                     vx, vz = randomWind(-.075, .075)*elmo, randomWind(-.075, .075)*elmo
                                 end
                                 cloud(t - (1-d/gap)/fps + (p.delay or 0), p[2], tx, ty, tz,
-                                    vx, 2, vz, p[3], p[4], artillery and 2 or 0,
-                                    (id*.371+d*2.1)%48, 2.5, false, not cannon, cannon)
+                                    vx, 2, vz, p[3], p[4], p.tone or 0,
+                                    (id*.371+d*2.1)%48, p.grow or 2.5, false, not cannon, cannon)
                             end
                         end
                         old.carry = (old.carry + gap) % step
@@ -462,6 +522,10 @@ local function filter(list, now, draw)
                 end
                 local x, z = p.x+p.vx*v, p.z+p.vz*v
                 local y = p.y+p.vy*v - (p.g or 0)*v*v*.5
+                if p.dorong then
+                    local e = 1 - (1 - math.min(1, age/p.dorong))^3
+                    x, y, z = x + p.bx*e, y + p.by*e, z + p.bz*e
+                end
                 if p.low then y = sp.GetGroundHeight(x,z)+p.size*(.1+v*.18) end
                 if p.g and p.g > 0 then y = math.max(sp.GetGroundHeight(x,z)+p.size*.2, y) end
                 if sp.IsSphereInView(x,y,z,p.size*3) then

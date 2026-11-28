@@ -62,7 +62,7 @@ Angka AI ada di `game/RTSPC.sdd/gamedata/profil_ai.lua`: Easy, Normal, dan Hard 
 
 Hard juga dapat menugaskan satu unit tambahan untuk memperkuat titik. Mode **Control Points** dimulai dari markas. Klik kiri untuk memilih unit atau seret kotak untuk memilih beberapa. Klik kanan untuk bergerak. Tekan **A**, lalu klik tank lawan atau tanah dalam jangkauan untuk menyerang. Gulir untuk zoom dan pakai tombol panah untuk menggeser kamera.
 
-**Mode pertandingan.** Menu skirmish punya dua tab: **Control Points** (kuasai titik A–D sampai skor target, atau hancurkan semua Command Core musuh) dan **Deathmatch** (tanpa titik dan skor; menang dengan menghancurkan semua Command Core musuh). Deathmatch memakai modoption `mode=hancur`. Panel atas menampilkan jumlah Command Core tersisa per kubu. Tingkat AI keempat, **Brutal**, membaca skor dan kekuatan, mengingat musuh yang menyerangnya, mundur untuk diperbaiki, dan belajar dari efektivitas unitnya.
+**Mode pertandingan.** Menu skirmish punya dua tab: **Control Points** (kuasai titik A–D sampai skor target, atau hancurkan semua Command Core musuh) dan **Deathmatch** (tanpa titik dan skor; menang dengan menghancurkan semua Command Core musuh). Deathmatch memakai modoption `mode=hancur`. Panel atas menampilkan jumlah Command Core tersisa per kubu. Tingkat AI keempat, **Brutal**, membaca skor dan kekuatan, mengingat musuh yang menyerangnya, mundur untuk diperbaiki, dan belajar dari efektivitas unitnya. Semua tingkat AI belajar selama pertandingan (`LuaRules/ai/belajar_unit.lua`). AI menaikkan produksi unit yang paling banyak memberi kerusakan dibanding kerugiannya. Easy belajar paling lambat, Brutal paling cepat. Ledakan tidak melontarkan unit.
 
 Menu berada di `menu/RTSPCMenu.sdd/`. Jalankan `python tools/buat_peta_skirmish.py` untuk membuat ulang pratinjau kedua peta dari relief. Font lokal Barlow Medium dan Barlow Condensed Bold karya Jeremy Tribby memakai [SIL Open Font License](menu/RTSPCMenu.sdd/LuaMenu/fonts/OFL.txt). [Sumber Barlow](https://github.com/google/fonts/tree/main/ofl/barlow) · [Sumber Barlow Condensed](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
 
@@ -118,7 +118,26 @@ Model markas dan bangunan ekonomi juga berasal dari aset v2. Konverter `tools/im
 
 ### Efek tempur dari V2
 
-Meriam, roket, dan senjata ringan memilih model tracer 3D dan profil asap lewat `customparams.fx_jejak`. `python tools/impor_tracer_v2.py` membangun ulang tiga model tracer. Tracer meriam menyala sepanjang 1,4 m. Jejak meriam biasa mengikuti profil V2 dengan jarak 0,6 m antargumpalan, jeda 0,04 detik, dan umur 0,19 detik. Asap mengikuti posisi proyektil Recoil. Untuk artileri jejak tertinggal sekitar 2,45 detik per gumpalan sambil hanyut.
+Meriam, roket, dan senjata ringan memilih model tracer 3D dan profil asap lewat `customparams.fx_jejak`. `python tools/impor_tracer_v2.py` membangun ulang tiga model tracer. Tracer meriam menyala sepanjang 1,4 m. Asap mengikuti posisi proyektil Recoil.
+
+**Asap tembakan meriam.** Sumbernya demo Blender `blender-assets/fraksi-1/efek/asap-meriam/` (`profil-integrasi-v1.json` dan `-v2.json`). Berlaku untuk meriam tank Fraksi 1 dan 2, Heavy Tank, Menara, dan artileri. Tiap tembakan:
+
+- **Semburan depan:** 16 kepulan putih terdorong 0,4–3,8 m dalam 0,35 detik. Kepulan lalu naik, hanyut terbawa angin, dan memudar dalam 2,5–4,5 detik.
+- **Asap tipis dari moncong:** muncul selama 1,5 detik sesudah tembakan.
+- **Varian:**
+  - **v1:** ada semburan kiri-kanan.
+  - **v2:** tanpa semburan kiri-kanan.
+  - Artileri selalu memakai v2. Meriam lain mengacak v1 atau v2 per tembakan.
+- Tidak ada debu di bawah moncong.
+
+**Jejak peluru.** Semua peluru meninggalkan jejak asap putih sesudah keluar dari laras:
+
+| Peluru | Jarak antarkepulan | Umur | Tampilan |
+|---|---|---|---|
+| Meriam | 0,5 m | 1,6 detik | ukuran awal 0,45 m |
+| Roket | — | 1,5 detik | — |
+| Artileri | — | 2,45 detik | — |
+| Senjata kecil | — | 0,45 detik | samar (alpha 0,2) |
 
 Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. Asap dan debu satu bidang per partikel menghadap kamera, seperti implementasi V2. Ledakan unit mencakup inti api, bola api dengan buntut asap, percikan, serpihan dan asap bangkai sampai 24 detik. Reklamasi bangkai menghentikan keluaran asap. Efek benturan tanah dan baja yang sudah dibake tetap dipakai dan senjata ringan mendapat percikan serta debu prosedural saat kena tanah.
 
@@ -126,7 +145,7 @@ Kilatan moncong dan ledakan unit memakai mesh 3D dengan shader api prosedural. A
 
 Konstruksi dan reklamasi memakai visual Recoil. Shockwave belum aktif.
 
-Bangunan berdiri di atas tapak tanah padat (decal `tools/buat_decal.py`). Peluru berat menggali kawah permanen di peta yang bisa dideformasi (Limestone Valley, Verdant Ridge). Kedalamannya 0,25–0,55 m per peluru, dan senjata kecil tidak membuat kawah. Gadget `kawah_bekas.lua` menempelkan bekas tanah teraduk yang tidak memudar.
+Bangunan berdiri di atas tapak tanah padat (decal `tools/buat_decal.py`). Peluru berat menggali kawah permanen di peta yang bisa dideformasi (Limestone Valley, Verdant Ridge). Kedalamannya 0,25–0,55 m per peluru, dan senjata kecil tidak membuat kawah. Gadget `kawah_bekas.lua` menempelkan bekas bergaya kawah bulan yang tidak memudar: dasar gelap, dinding yang terbaca dari bayangan normal map, bibir kapur terang yang terangkat, dan sinar lontaran tipis.
 
 ### Suara mesin kendaraan
 
@@ -151,6 +170,37 @@ Tiang Relay memperluas jaringan dari Command Core. Substation memberi listrik lo
 Di Central Hill, uji roster memverifikasi kelima bangunan dapat dibangun, penambahan kapasitas Depot, putaran dan jangkauan deteksi Radar, tembakan Menara, putus sambung jaringan, dan bangkai 10 bangunan. Uji klik HUD memeriksa sembilan kartu Build, dan regresi produksi memverifikasi kedelapan unit keluar dari pabrik.
 
 Model hidup memakai warna tim, roda/track berfase, dan bagian bidik terpisah sesuai model. Robot Roket memakai pose langkah dari Blender, sedangkan Robot Infanteri memakai langkah prosedural. Recoil memakai atlas warna tim/refleksi/emisi bawaannya, dengan tekstur hasil impor yang dipadatkan agar semua model dapat dimuat bersamaan.
+
+### Fraksi 2
+
+Fraksi 2 dimainkan dari menu skirmish lewat pilihan **FACTION**: **You** untuk kubu pemain beserta sekutu AI, dan **Enemy** untuk kubu lawan. Menu mengirim modoption `fraksi_<tim>=2`. **Play Again** di dalam game membawa pilihan yang sama. Modul identitas `gamedata/fraksi.lua` dipakai bersama oleh gadget, AI, dan HUD.
+
+Asetnya terdiri dari 16 model: 6 tank, Artileri, 2 robot, HQ, 2 pabrik, Menara, Depot, Relay, dan Substation. Lima belas model pertama lulus uji batch Recoil, 15 model hidup dan 15 bangkai (`tools/uji_batch_fraksi2.py`). Artileri menyusul 2026-11-28 dengan skrip `ekspor_artileri_f2.py` dan `siapkan_recoil_artileri_f2.py` di `blender-assets/fraksi-2/tank-artilery-f2-review/` (4.840 segitiga tersimpan dengan 8 fase track, 3.272 tampil, bangkai 996). Laras Artileri F2 dimodelkan pada elevasi 35,79° (`rig.netral`), dan skrip unit memutarnya relatif terhadap sudut itu. Model dipasang dengan `python tools/pasang_fraksi2.py`. Skrip ini juga menyalin rig dan pintu pabrik, menulis ukuran model, dan membuat potret kartu.
+
+Tekstur dipakai dalam resolusi penuh (atlas 1024–2048²), jadi `TextureMemPoolSize = 1024` dipasang di config rilis. Dengan batas bawaan 512 MiB, Fraksi 1 dan Fraksi 2 tidak muat dimuat bersamaan.
+
+Unit Fraksi 2 dibuat di `gamedata/fraksi2.lua` dengan menyalin def padanannya di Fraksi 1. HP, biaya, kecepatan, dan senjatanya sama. Bedanya:
+
+- Volume tumbukan diambil dari lambung model.
+- HQ memakai tapak 11, menyesuaikan modelnya yang selebar 21 m.
+- Engineer Tank (tapak 3×3) menggantikan Engineer Bot. Unit ini dibuat di HQ dan Vehicle Factory.
+- Batas tembak elevasi mengikuti padanannya di Fraksi 1. Laras model sendiri tetap dibatasi rig.
+
+**Heavy Tank** adalah unit khusus Fraksi 2:
+
+- Statistik: 2.000 HP, 450 besi dan 1.575 energi, 4 m/detik.
+- Meriam: tiga laras yang menembak bergantian dalam satu burst, 3 × 70 damage setiap 3,5 detik, jangkauan 38 m.
+
+Iron Extractor, Oil Pump, dan Radar masih memakai model Fraksi 1 karena model Fraksi 2-nya belum ada. AI ikut memakai versi fraksi timnya dan memasukkan Heavy Tank ke campuran produksi kendaraan.
+
+Hasil uji di Central Hill:
+
+- **AI lawan AI, 9 menit, Normal:** AI Fraksi 2 membangun HQ, kedua pabrik, menara, Substation, radar, dan semua unit tempurnya.
+- **Pemain Fraksi 2:** kartu produksi HQ dan Engineer Tank tampil lengkap dengan potret.
+- **Duel Heavy Tank + Medium Fraksi 2 lawan 2 Medium Fraksi 1:** semua unit menembak.
+- **Deathmatch penuh Normal, dua laga dengan sisi ditukar:** Fraksi 2 menang di sisi barat (18,1 menit), Fraksi 1 menang di sisi barat (19,2 menit). Hasil 1–1 ini menunjukkan sisi barat yang lebih menentukan. Dua laga belum cukup untuk menyebut kedua fraksi seimbang.
+
+Fraksi 2 belum punya model LOD, jadi unitnya selalu digambar penuh.
 
 ### LOD unit
 
@@ -239,6 +289,12 @@ Uji grafis ini berlangsung saat target skor masih 1.000 poin. Skrip mengatur kam
 | Ekonomi dulu | 94 dtk | 111 dtk | 50–290 | 130–1.000 |
 
 Dalam uji kontrol terpisah, lima unit campuran tiba setelah **Move**, mengenai sasaran saat menjalankan **Attack Move**, menerima perintah fokus tembak, lalu kembali saat pemain klik kanan ke arah mundur. Light Tank keluar dari pabrik dan tiba di rally. Uji HUD memeriksa penanda rally, pesan **Low iron**, rentang 30–120 m, dan peringatan artileri saat sasaran berada di bawah 30 m. Log dan tangkapan layar tersedia lokal di `.cache/kontrol-v7-*-1280x800/`.
+
+**Formasi gerak grup** (`LuaUI/formasi.lua`). Klik **Move**, **Attack Move**, atau **Patrol** dengan dua unit atau lebih memberi tiap unit slot tujuan sendiri dalam blok yang menghadap arah gerak, bukan satu titik yang sama. Urutan depan-belakang dan kiri-kanan grup tetap. Drag kanan (formasi garis engine) tidak berubah. Uji A/B 24 tank campuran di Limestone Valley, satu klik Move sejauh ±220 m: pasangan unit yang saling tumpuk turun dari 4.497 ke 879 unit-detik, jarak terdekat antar-unit di tujuan naik dari 25 ke 33 elmo, dan waktu sampai sama (±55 dtk).
+
+**Seleksi pintar** (`LuaUI/pilih_tempur.lua`). Drag kotak, Ctrl+A, atau klik ganda yang menangkap unit tempur sekaligus bangunan/insinyur hanya memilih unit tempurnya. Klik satu bangunan atau insinyur, Shift+klik untuk menambah satu unit, dan kotak yang isinya hanya bangunan/insinyur tetap memilih seperti biasa. Keempat kasus ini diuji di Recoil.
+
+**Bayangan awan** (`LuaUI/awan_bayang.lua`, aktif bawaan). Bayangan awan lembut ±50–200 m bergerak di atas medan, pohon, dan unit dengan laju 6 m/detik dan gelap maksimal 40%. Satu pass shader layar penuh membaca depth layar dan tidak butuh render medan tambahan. Uji di Limestone Valley pada 960×540: fps 293 dengan bayangan, 296 tanpa bayangan.
 
 ### Regresi kontrol Central Hill
 

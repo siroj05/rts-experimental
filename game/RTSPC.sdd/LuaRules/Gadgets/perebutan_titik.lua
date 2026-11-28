@@ -15,7 +15,7 @@ for id, def in pairs(UnitDefs) do
     if def.customParams.duduki == "1" then penangkap[id] = true end
 end
 local pakaiMarkas = Spring.GetModOptions().ekonomi == "1"
-local markas = UnitDefNames.inti_komando.id
+local markasSemua = VFS.Include("gamedata/fraksi.lua").semua("inti_komando")
 local kubu = {[0] = {}, [1] = {}}
 local skor = {[0] = 0, [1] = 0}
 local titik = aturan.titik
@@ -86,9 +86,14 @@ local function akhiri(pemenang)
     end
 end
 
-local function habis(ally, def)
+local function habis(ally, defs)
     for _, team in ipairs(kubu[ally]) do
-        local count = def and Spring.GetTeamUnitDefCount(team, def) or Spring.GetTeamUnitCount(team)
+        local count = 0
+        if defs then
+            for _, def in ipairs(defs) do count = count + Spring.GetTeamUnitDefCount(team, def) end
+        else
+            count = Spring.GetTeamUnitCount(team)
+        end
         if count > 0 then return false end
     end
     return true
@@ -100,11 +105,13 @@ function gadget:GameFrame(frame)
         -- Jumlah markas hidup per kubu untuk HUD (dipakai terutama di mode Deathmatch).
         for ally = 0, 1 do
             local n = 0
-            for _, team in ipairs(kubu[ally]) do n = n + Spring.GetTeamUnitDefCount(team, markas) end
+            for _, team in ipairs(kubu[ally]) do
+                for _, markas in ipairs(markasSemua) do n = n + Spring.GetTeamUnitDefCount(team, markas) end
+            end
             Spring.SetGameRulesParam("markas_hidup_" .. ally, n)
         end
-        local baratHancur = habis(0, markas)
-        local timurHancur = habis(1, markas)
+        local baratHancur = habis(0, markasSemua)
+        local timurHancur = habis(1, markasSemua)
         if baratHancur or timurHancur then
             akhiri(baratHancur and timurHancur and -2 or (baratHancur and 1 or 0))
             return

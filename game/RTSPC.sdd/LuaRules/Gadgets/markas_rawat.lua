@@ -15,7 +15,7 @@ local detik = selang / Game.gameSpeed
 local daftar = {}
 
 function gadget:UnitFinished(unit, def)
-    if def == markas.id then daftar[unit] = true end
+    if VFS.Include("gamedata/fraksi.lua").dasar[def] == markas.id then daftar[unit] = true end
 end
 
 function gadget:UnitDestroyed(unit)

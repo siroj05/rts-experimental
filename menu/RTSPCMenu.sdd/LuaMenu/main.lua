@@ -29,6 +29,15 @@ local modeSetting = "RTSPCSkirmishMode"
 local modes = {{key = "titik", name = "Control Points"}, {key = "hancur", name = "Deathmatch"}}
 local modeTabs = {{x = 819, y = 500, w = 160, h = 30}, {x = 985, y = 500, w = 160, h = 30}}
 local selectedMode = 1
+-- Fraksi (✅ user 2026-11-28: integrasi Fraksi 2): satu pilihan untuk kubu pemain (pemain + sekutu AI) dan satu
+-- untuk kubu lawan. Disalurkan sebagai modoption fraksi_<tim>=2.
+local factionSetting = {you = "RTSPCSkirmishFaction", ai = "RTSPCSkirmishEnemyFaction"}
+local factionNames = {"Faction I", "Faction II"}
+local factionTabs = {
+    you = {{x = 870, y = 146, w = 75, h = 30}, {x = 949, y = 146, w = 75, h = 30}},
+    ai = {{x = 1078, y = 146, w = 75, h = 30}, {x = 1157, y = 146, w = 75, h = 30}},
+}
+local faction = {you = 1, ai = 1}
 local ink = {0.17, 0.18, 0.15, 1}
 local mutedInk = {0.35, 0.34, 0.27, 1}
 local background = {0.095, 0.102, 0.09, 1}
@@ -41,7 +50,7 @@ local blue = {0.25, 0.43, 0.48, 1}
 local red = {0.61, 0.30, 0.20, 1}
 local mine = {0.47, 0.38, 0.25, 1}
 local exit = {x = 1154, y = 657, w = 78, h = 36}
-local deploy = {x = 819, y = 122, w = 413, h = 64}
+local deploy = {x = 819, y = 74, w = 413, h = 64}
 local rows = {
     {x = 819, y = 360, w = 413, h = 49},
     {x = 819, y = 308, w = 413, h = 49},
@@ -244,6 +253,9 @@ function ActivateMenu()
     local lastMode = sp.GetConfigString(modeSetting, "titik")
     selectedMode = 1
     for i, m in ipairs(modes) do if m.key == lastMode then selectedMode = i end end
+    for side, key in pairs(factionSetting) do
+        faction[side] = sp.GetConfigInt(key, 1) == 2 and 2 or 1
+    end
     local lastMap = sp.GetConfigString(mapSetting, maps[1].key)
     selectedMap = 1
     for i, entry in ipairs(maps) do if entry.key == lastMap then selectedMap = i end end
@@ -264,11 +276,20 @@ function Update()
     local key = levels[selected]
     local entry = maps[selectedMap]
     local extra = modes[selectedMode].key == "hancur" and "mode=hancur;" or ""
+    -- Tim sekubu dengan TEAM0 (pemain) memakai fraksi "you", sisanya fraksi "ai".
+    local allyOf = {}
+    for team, body in entry.start:gmatch("%[TEAM(%d+)%]%s*{([^}]*)}") do
+        allyOf[tonumber(team)] = tonumber(body:match("AllyTeam=(%d+)"))
+    end
+    for team, ally in pairs(allyOf) do
+        if faction[ally == allyOf[0] and "you" or "ai"] == 2 then extra = extra .. "fraksi_" .. team .. "=2;" end
+    end
     local script, found = entry.start:gsub("ekonomi=1;", "ekonomi=1;tingkat_ai=" .. key .. ";kembali_menu=1;" .. extra)
     assert(found == 1, "Skirmish start script is missing its economy setting")
     sp.SetConfigString(setting, key)
     sp.SetConfigString(mapSetting, entry.key)
     sp.SetConfigString(modeSetting, modes[selectedMode].key)
+    for side, k in pairs(factionSetting) do sp.SetConfigInt(k, faction[side]) end
     onMenu, pending = false, false
     sp.Reload(script)
 end
@@ -322,6 +343,17 @@ function DrawScreen()
         title(profile.nama, r.x + 36, r.y + 15, 24, current and bone or subdued)
         letter(profile.ringkas, r.x + 135, r.y + 17, 16, current and bone or subdued)
     end
+    letter("FACTION", 821, 184, 14, subdued)
+    for side, tabs in pairs(factionTabs) do
+        letter(side == "you" and "You" or "Enemy", tabs[1].x - 6, tabs[1].y + 9, 15, subdued, "r")
+        for i, r in ipairs(tabs) do
+            local current, hover = i == faction[side], inside(mx, my, r)
+            local fill = current and {0.25, 0.24, 0.18, 1} or hover and {0.16, 0.18, 0.14, 1}
+            if fill then rect(r.x, r.y, r.w, r.h, fill) end
+            rect(r.x, r.y, r.w, 1, current and orange or line)
+            letter(factionNames[i], r.x + r.w * .5, r.y + 9, 15, current and bone or subdued, "c")
+        end
+    end
     rect(deploy.x, deploy.y - 4, deploy.w, deploy.h, ink)
     local hovered = inside(mx, my, deploy)
     rect(deploy.x, deploy.y, deploy.w, deploy.h, hovered and {1.0, 0.75, 0.48, 1} or orange)
@@ -350,6 +382,9 @@ local function actionAt(x, y)
     end
     for i, r in ipairs(rows) do if inside(x, y, r) then return i end end
     for i, r in ipairs(modeTabs) do if inside(x, y, r) then return "mode" .. i end end
+    for side, tabs in pairs(factionTabs) do
+        for i, r in ipairs(tabs) do if inside(x, y, r) then return "faction-" .. side .. i end end
+    end
     if inside(x, y, deploy) then return "start" end
     if inside(x, y, exit) then return "exit" end
 end
@@ -375,6 +410,9 @@ function MouseRelease(x, y, button)
     elseif action == "exit" then sp.Quit()
     elseif type(action) == "number" then selected = action
     elseif action:sub(1, 4) == "mode" then selectedMode = tonumber(action:sub(5))
+    elseif action:sub(1, 8) == "faction-" then
+        local side, i = action:match("faction%-(%a+)(%d)")
+        faction[side] = tonumber(i)
     else
         for i, entry in ipairs(maps) do if entry.key == action then selectedMap = i end end
         mapFocus = nil

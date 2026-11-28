@@ -53,7 +53,9 @@ def main():
         (game / f).unlink()
     (scratch / "springsettings.cfg").write_text(
         f"Fullscreen=0\nXResolutionWindowed={a.lebar}\nYResolutionWindowed={a.tinggi}\n"
-        "WindowPosX=40\nWindowPosY=40\nVSync=0\nWindowBorderless=0\n" + "".join(c + "\n" for c in a.cfg),
+        "WindowPosX=40\nWindowPosY=40\nVSync=0\nWindowBorderless=0\n"
+        # Fraksi 1 + 2 butuh pool tekstur 1024 MiB (bawaan 512 membuat loading LuaRules macet).
+        "TextureMemPoolSize=1024\n" + "".join(c + "\n" for c in a.cfg),
         encoding="ascii")
     hook = (HOOKS / "dasar.lua").read_text(encoding="utf-8") + "\n" + Path(a.hook).read_text(encoding="utf-8")
     with (game / "LuaUI/main.lua").open("a", encoding="utf-8") as ui:

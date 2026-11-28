@@ -8,6 +8,8 @@ local markas, relay, gardu = defs.inti_komando.id, defs.tiang_relay.id, defs.gar
 local radar, menara = defs.radar.id, defs.menara_pertahanan.id
 local cakupan = {[markas] = tonumber(defs.inti_komando.customParams.radius_zona), [relay] = 24 * 8, [gardu] = 19 * 8}
 local biaya = {[gardu] = 5, [radar] = 4, [menara] = 5}
+-- Bangunan Fraksi 2 memakai aturan padanannya (gamedata/fraksi.lua).
+local dasar = VFS.Include("gamedata/fraksi.lua").dasar
 local jaringan, aktif = {}, {}
 
 local function dekat(a, b, radius)
@@ -70,6 +72,7 @@ local function dayaTim(units)
 end
 
 function gadget:UnitFinished(id, def)
+    def = dasar[def]
     if cakupan[def] or biaya[def] then jaringan[id] = def end
 end
 

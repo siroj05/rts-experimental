@@ -30,9 +30,11 @@ local gardu = UnitDefNames.gardu.id
 local relay = UnitDefNames.tiang_relay.id
 local radar = UnitDefNames.radar.id
 local lontar = VFS.Include("gamedata/lontar.lua")
+local fraksi = VFS.Include("gamedata/fraksi.lua")
 local Otak = VFS.Include("LuaRules/ai/otak_brutal.lua")
 local GarisDepan = VFS.Include("LuaRules/ai/garis_depan.lua")
 local Militer = VFS.Include("LuaRules/ai/militer.lua")
+local Belajar = VFS.Include("LuaRules/ai/belajar_unit.lua")
 local tempur = {}
 for id, def in pairs(UnitDefs) do
     if def.customParams.duduki == "1" then tempur[#tempur + 1] = id end
@@ -40,7 +42,9 @@ end
 local tempurSet = {}
 for _, id in ipairs(tempur) do tempurSet[id] = true end
 local berat = {}
-for _, n in ipairs({"medium_tank", "tank_ringan", "medium_tank_destroyer"}) do berat[UnitDefNames[n].id] = true end
+for _, n in ipairs({"medium_tank", "tank_ringan", "medium_tank_destroyer", "heavy_tank_f2"}) do
+    for _, id in ipairs(fraksi.semua(n)) do berat[id] = true end
+end
 
 -- Bobot dasar produksi dan tambahan per unit musuh berat/ringan yang terlihat (counter).
 local bobotKendaraan = {
@@ -48,6 +52,8 @@ local bobotKendaraan = {
     {nama = "tank_ringan", dasar = 3, lawanBerat = 0, lawanRingan = .25},
     -- Destroyer: counter tank berat (2026-11-26: dasar 1 -> 1,5, per tank berat .45 -> .7; dulu ±4% produksi).
     {nama = "medium_tank_destroyer", dasar = 1.5, lawanBerat = .7, lawanRingan = 0},
+    -- Heavy Tank: khusus Fraksi 2 (🟡 2026-11-28).
+    {nama = "heavy_tank_f2", dasar = 1.5, lawanBerat = .3, lawanRingan = .1},
     {nama = "pengintai", dasar = 1, lawanBerat = 0, lawanRingan = .1, maks = 2},
     -- Artileri: + per bangunan pertahanan musuh terlihat dan per radar jauh sendiri (dijaga artileri), maks naik juga.
     {nama = "artileri_ringan", dasar = 1.5, lawanBerat = .05, lawanRingan = .05, lawanMenara = .6, perRadar = .8, maks = 4},
@@ -80,7 +86,38 @@ local rencanaBawaan = {
 
 local function jarak2(ax, az, bx, bz) return (ax - bx)^2 + (az - bz)^2 end
 
+-- Salinan daftar bobot dengan def versi fraksi tim; unit yang tidak tersedia untuk fraksi itu dilewati.
+local function versiBobot(tim, daftar)
+    local hasil = {}
+    for _, b in ipairs(daftar) do
+        local def = fraksi.versi(tim, b.nama)
+        if def then
+            local salinan = {}
+            for k, v in pairs(b) do salinan[k] = v end
+            salinan.def = def
+            hasil[#hasil + 1] = salinan
+        end
+    end
+    return hasil
+end
+
 local function buatPengendali(tim, rencana)
+    -- Fraksi tim (modoption fraksi_<tim>): id unit/bangunan di bawah menimpa id Fraksi 1 tingkat modul, jadi seluruh
+    -- logika di pengendali ini memakai versi fraksi tim.
+    local hq = fraksi.versi(tim, "inti_komando")
+    local insinyur = fraksi.versi(tim, "robot_insinyur")
+    local pabrik = fraksi.versi(tim, "pabrik_kendaraan")
+    local pabrikRobot = fraksi.versi(tim, "pabrik_robot")
+    local ekstraktor = fraksi.versi(tim, "ekstraktor_besi")
+    local pompa = fraksi.versi(tim, "pompa_minyak")
+    local artileri = fraksi.versi(tim, "artileri_ringan")
+    local pengintai = fraksi.versi(tim, "pengintai")
+    local menara = fraksi.versi(tim, "menara_pertahanan")
+    local gardu = fraksi.versi(tim, "gardu")
+    local relay = fraksi.versi(tim, "tiang_relay")
+    local radar = fraksi.versi(tim, "radar")
+    local bobotKendaraan = versiBobot(tim, bobotKendaraan)
+    local bobotRobot = versiBobot(tim, bobotRobot)
     -- Tingkat per tim (modoption tingkat_ai_<tim>, untuk uji adu tingkat); bawaan tingkat_ai pertandingan.
     local tingkat = profil[opsi["tingkat_ai_" .. tim]] or tingkat
     -- Khusus uji A/B: modoption uji_ai_<tim>="kunci:nilai,kunci:nilai" menimpa salinan profil (angka/true/false).
@@ -112,10 +149,10 @@ local function buatPengendali(tim, rencana)
     local posisi = {{0, 0}, {0, 48}, {0, -48}, {48, 0}, {-48, 0}}
     local rencanaBangun = {}
     for _, b in ipairs(rencana and rencana.bangunan or {}) do
-        rencanaBangun[#rencanaBangun + 1] = {def = UnitDefNames[b.unit].id, jumlah = b.jumlah, tapak = b.tapak}
+        rencanaBangun[#rencanaBangun + 1] = {def = fraksi.versi(tim, b.unit), jumlah = b.jumlah, tapak = b.tapak}
     end
     for _, b in ipairs(rencanaBawaan) do
-        local def = UnitDefNames[b.unit].id
+        local def = fraksi.versi(tim, b.unit)
         local jumlah = b.jumlah
         if def == pabrik then jumlah = math.min(jumlah, tingkat.pabrik) end
         if def == ekstraktor then jumlah = math.min(jumlah, tingkat.ekstraktor) end
@@ -138,6 +175,9 @@ local function buatPengendali(tim, rencana)
     local jagaRadar = {} -- radar jauh -> artileri penjaganya
     local diproduksi = {}
     local nabung = {} -- pabrik -> frame mulai menabung untuk unit pilihan
+    -- Belajar efektivitas unit dalam ronde: semua tingkat, kekuatan per tingkat (profil_ai.lua `belajar`).
+    local belajar = Belajar.baru({tim = tim, kekuatan = tingkat.belajar, tempurSet = tempurSet, artileri = artileri})
+    local laporanBelajar = 0
     local otak = gayaNama and Otak.baru({tim = tim, tingkat = tingkat, gaya = gayaNama, aturan = aturan, tempur = tempur,
         tempurSet = tempurSet, berat = berat, artileri = artileri, lontar = lontar, hq = hq, insinyur = insinyur,
         ekstraktor = ekstraktor, pompa = pompa, pabrik = pabrik, pabrikRobot = pabrikRobot})
@@ -575,7 +615,7 @@ local function buatPengendali(tim, rencana)
                 -- Jumlah musuh terlihat dibatasi 15 supaya gerombolan robot tidak membuat bobot pengintai membengkak.
                 local bobot = (b.dasar + b.lawanBerat * math.min(15, terlihat.berat) + b.lawanRingan * math.min(15, terlihat.ringan)
                     + (b.lawanMenara or 0) * terlihat.menara + (b.perRadar or 0) * terlihat.radarJauh)
-                    * (otak and otak.KaliProduksi(b.def) or 1) * (kilat and 20 or 1)
+                    * (otak and otak.KaliProduksi(b.def) or 1) * belajar.Kali(b.def) * (kilat and 20 or 1)
                 local nilai = bobot / (1 + (diproduksi[b.def] or 0) * .35)
                 if not nilaiTerbaik or nilai > nilaiTerbaik then terbaik, nilaiTerbaik = b.def, nilai end
             end
@@ -781,6 +821,10 @@ local function buatPengendali(tim, rencana)
           end
         end
 
+        if frame - laporanBelajar >= 120 * Game.gameSpeed then
+            laporanBelajar = frame
+            sp.Echo(belajar.Laporan())
+        end
         if pulih or #sp.GetTeamUnitsByDefs(tim, tempur) >= tingkat.batasPasukan then return end
         local terlihat = musuhTerlihat()
         for _, f in ipairs(pabrikJadi) do produksiBerbobot(f, bobotKendaraan, terlihat) end
@@ -1147,6 +1191,7 @@ local function buatPengendali(tim, rencana)
 
     local function UnitDestroyed(unit, def, team, _, _, attackerTeam)
         if otak then otak.Hancur(unit, def, team, attackerTeam) end
+        if aktif then belajar.Hancur(def, team) end
         if garis then garis.Hancur(unit) end
         if militer then militer.Hancur(unit) end
         penugasan[unit], lahir[unit], kabur[unit] = nil, nil, nil
@@ -1155,6 +1200,7 @@ local function buatPengendali(tim, rencana)
 
     local function UnitDamaged(unit, def, pemilik, attackerTeam, damage, attackerDef, attackerID)
         if otak and aktif then otak.Rusak(unit, def, pemilik, damage, attackerDef, attackerTeam) end
+        if aktif then belajar.Rusak(def, pemilik, damage, attackerDef, attackerTeam) end
         if pemilik ~= tim or not attackerTeam or sp.AreTeamsAllied(attackerTeam, tim) then return end
         -- Insinyur ditembak (keputusan user 2026-11-26): yang sedang membangun tetap membangun; yang diam atau berjalan
         -- kabur ±300 elmo menjauhi penembak, condong ke markas, lalu tidak diberi tugas baru selama 8 detik.

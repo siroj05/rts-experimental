@@ -30,6 +30,11 @@ Contoh penerapan: Limestone Valley 4v4 (`tools/lembah_kapur_layout.py`, `maps/le
   - **rebutan**: waktu tempuh sama bagi kedua kubu. **Jumlahnya sedikit saja**, karena pemenang perebutannya untung berlipat;
   - **mati**: tidak bernilai, cuma ruang manuver.
 - Energi (pompa minyak) dibangun bebas oleh pemain, tidak perlu titik di peta.
+- ✅ 2026-11-26 (user: "sebaran mineral kurang banyak dan kurang acak", memilih "tambang banyak, hasil turun"):
+  - Peta boleh punya banyak tambang dengan hasil per ekstraktor lebih kecil. Total tetap harus 5–15 per pemain.
+  - Limestone Valley punya 74 tambang × 1,5 = 13,9 besi/detik per pemain. Ekstraktornya di-override di
+    `gamedata/defs.lua` per skenario.
+  - Ekspansi boleh berupa kelompok acak berisi 1–4 tambang, menggantikan aturan FAF "kelompok ≥ 3".
 
 ## 4. Medan
 

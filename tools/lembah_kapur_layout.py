@@ -25,7 +25,10 @@ STEM = "lembah-kapur-4v4"
 NAMA = "Limestone Valley 4v4"
 TENGAH = UKURAN / 2
 ELMO = 8
-LOGAM_PER_TAMBANG = 2.5
+# ✅ user 2026-11-26: tambang lebih banyak dan lebih acak, hasil per tambang diturunkan supaya total tetap di batas
+# aturan (5-15/detik per pemain). Ekstraktor di peta ini menghasilkan 1,5 (gamedata/defs.lua, skenario kapur).
+LOGAM_PER_TAMBANG = 1.5
+TAMBANG_EKSPANSI = 24  # per sisi, di luar 12 tambang start dan pulau
 TERAS_R = 70
 BELA_R = 35
 SUNGAI_SETENGAH = 16
@@ -135,8 +138,9 @@ class Layout:
         self.tengah = [(self.sungai_x(TENGAH - 30), TENGAH - 30), (self.sungai_x(TENGAH + 30), TENGAH + 30)]
         self.markas = self.markas_b + [putar(p) for p in self.markas_b]
         self.bela = self.bela_b + [putar(p) for p in self.bela_b]
-        # Ekspansi (user 2026-11-26: "mineralnya disebar dimana aja"): 3 kelompok x 3 tambang per sisi di lokasi acak
-        # mana saja yang datar; zona dari jarak ke markas sendiri vs lawan. Wajib >= 1 aman dan >= 1 rampok per sisi.
+        # Ekspansi (user 2026-11-26: "mineralnya disebar dimana aja", lalu "sebaran mineral kurang banyak dan kurang
+        # acak"): kelompok acak berisi 1-4 tambang dengan jarak antartambang acak, di mana saja yang datar. Zona dihitung
+        # dari jarak ke markas sendiri vs lawan. Wajib >= 1 aman dan >= 1 rampok per sisi.
         self.ekspansi_b = self._sebar_ekspansi()
         # Rute dan hutan
         self.rute_b = self._rute()
@@ -158,30 +162,35 @@ class Layout:
 
     def _sebar_ekspansi(self):
         r = self.r
-        kel = []
-        for _ in range(600):
-            if len(kel) == 3:
+        kel, total, rebutan = [], 0, 0
+        for _ in range(4000):
+            if total >= TAMBANG_EKSPANSI:
                 break
-            cx, cz = r.uniform(70, TENGAH - 40), r.uniform(70, UKURAN - 70)
+            cx, cz = r.uniform(50, TENGAH - 30), r.uniform(50, UKURAN - 50)
             pusat = (cx, cz)
-            if abs(cx - self.sungai_x(cz)) < 70:
+            if abs(cx - self.sungai_x(cz)) < 50:
                 continue
-            if min(jarak(pusat, m) for m in self.markas) < 170 or min(jarak(pusat, b) for b in self.bela) < 80:
+            if min(jarak(pusat, m) for m in self.markas) < 140 or min(jarak(pusat, b) for b in self.bela) < 55:
                 continue
-            if any(jarak(pusat, k["pusat"]) < 220 or jarak(pusat, putar(k["pusat"])) < 220 for k in kel):
+            if any(jarak(pusat, k["pusat"]) < 75 or jarak(pusat, putar(k["pusat"])) < 75 for k in kel):
                 continue
-            if jarak(pusat, putar(pusat)) < 220 or jarak(pusat, (TENGAH, TENGAH)) < 120:
+            if jarak(pusat, putar(pusat)) < 150 or jarak(pusat, (TENGAH, TENGAH)) < 100:
                 continue
             ds = min(jarak(pusat, m) for m in self.markas_b)
             de = min(jarak(pusat, m) for m in self.markas[4:])
             rasio = ds / de
             if rasio < .65:
                 zona = "aman"
-            elif rasio <= .85 and ds >= 350:
+            elif rasio <= .85 and ds >= 300:
                 zona = "rampok"
+            elif rebutan < 2:
+                zona = "rebutan"  # sedikit saja (aturan: rebutan <= 10%)
             else:
-                continue  # rebutan dibatasi ke pulau (aturan: sedikit saja)
-            titik = self._kelompok(cx, cz)
+                continue
+            n = min(r.choices((1, 2, 3, 4), weights=(35, 30, 25, 10))[0], TAMBANG_EKSPANSI - total)
+            if zona == "rebutan":
+                n = min(n, 2 - rebutan)
+            titik = self._kelompok(cx, cz, n)
             tx = np.array([t[0] for t in titik])
             tz = np.array([t[1] for t in titik])
             e = 6.0
@@ -189,12 +198,25 @@ class Layout:
             hz = (self.tinggi_dasar(tx, tz + e) - self.tinggi_dasar(tx, tz - e)) / (2 * e)
             if float(np.degrees(np.arctan(np.hypot(hx, hz))).max()) >= 8:
                 continue
+            if any(abs(x - self.sungai_x(z)) < 45 for x, z in titik):
+                continue
             kel.append({"pusat": pusat, "zona": zona, "titik": titik})
+            total += n
+            rebutan += n if zona == "rebutan" else 0
         return kel
 
-    def _kelompok(self, cx, cz):
-        a0 = self.r.uniform(0, 2 * math.pi)
-        return [(cx + math.cos(a0 + k * 2.1) * 32, cz + math.sin(a0 + k * 2.1) * 32) for k in range(3)]
+    def _kelompok(self, cx, cz, n):
+        """n tambang di sekitar pusat: sudut dan jarak acak, minimal 20 m antartambang."""
+        titik = [(cx, cz)]
+        for _ in range(200):
+            if len(titik) == n:
+                break
+            a, d = self.r.uniform(0, 2 * math.pi), self.r.uniform(22, 42)
+            bx, bz = titik[self.r.randrange(len(titik))]
+            p = (bx + math.cos(a) * d, bz + math.sin(a) * d)
+            if all(jarak(p, q) >= 20 for q in titik):
+                titik.append(p)
+        return titik
 
     def sungai_x(self, z):
         t = z - TENGAH
@@ -299,8 +321,10 @@ class Layout:
         cek("logam 5-15/detik per pemain", 5 <= logam <= 15, f"{logam:.1f}")
         cek("start 2-5 tambang per markas", True, "3")
         zn = [k["zona"] for k in self.ekspansi_b]
-        cek("ekspansi: 3 kelompok x 3 tambang, >= 1 aman dan >= 1 rampok",
-            len(zn) == 3 and "aman" in zn and "rampok" in zn, ", ".join(zn) or "-")
+        ukuran = [len(k["titik"]) for k in self.ekspansi_b]
+        cek("ekspansi: kelompok acak 1-4 tambang, >= 1 aman dan >= 1 rampok",
+            sum(ukuran) == TAMBANG_EKSPANSI and "aman" in zn and "rampok" in zn,
+            f"{len(ukuran)} kelompok {sorted(ukuran)}, aman {zn.count('aman')}, rampok {zn.count('rampok')}")
         reb = sum(1 for *_, zn in self.zona if zn == "rebutan")
         cek("tambang rebutan <= 10%", reb / len(self.tambang) <= .10, f"{reb} dari {len(self.tambang)}")
         lorong = [round(l) for *_, l in self.raid_b]
@@ -321,7 +345,7 @@ class Layout:
         cek("tambang di tanah datar (< 8°)", miring < 8, f"maks {miring:.1f}°")
         if self.ekspansi_b:
             ds = [round(min(jarak(k["pusat"], m) for m in self.markas_b)) for k in self.ekspansi_b]
-            cek("ekspansi tidak menempel markas (>= 170 m)", min(ds) >= 170, f"{ds} m")
+            cek("ekspansi tidak menempel markas (>= 140 m)", min(ds) >= 140, f"min {min(ds)} m")
         # Rute markas -> bukaan maksimal 90 detik Medium Tank
         tb = max(jarak(m, min(self.bela_b, key=lambda p: jarak(p, m))) for m in self.markas_b) / 5.5
         cek("markas -> titik pertahanan <= 90 s", tb <= 90, f"{tb:.0f} s")

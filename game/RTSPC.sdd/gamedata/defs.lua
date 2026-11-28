@@ -18,6 +18,8 @@ movement[#movement + 1] = {
 }
 movement[#movement + 1] =
     {name = "robot_kerja", footprintx = 1, footprintz = 1, speedmodclass = 1, maxslope = 28, maxwaterdepth = 0}
+-- Fraksi 2: salinan def Fraksi 1 dengan model Fraksi 2 + Heavy Tank (gamedata/fraksi2.lua).
+local padananF2 = VFS.Include("gamedata/fraksi2.lua")(units, weapons, movement, fraksi.armor)
 
 local skenario = Spring.GetModOptions().skenario
 if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" or skenario == "kapur" then
@@ -42,7 +44,9 @@ if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" or skenari
     for _, move in ipairs(movement) do move.maxwaterdepth = 8 end
 
     local lebarTrack = {medium_tank = 27, tank_ringan = 22, medium_tank_destroyer = 25,
-        pengintai = 15, artileri_ringan = 17, robot_insinyur = 15}
+        pengintai = 15, artileri_ringan = 17, robot_insinyur = 15,
+        pengintai_f2 = 22, tank_ringan_f2 = 22, medium_tank_f2 = 24, medium_tank_destroyer_f2 = 22,
+        heavy_tank_f2 = 36, tank_insinyur_f2 = 28, artileri_ringan_f2 = 30}
     for nama, lebar in pairs(lebarTrack) do
         local unit = units[nama]
         unit.leaveTracks, unit.trackType = true, "StdTank"
@@ -53,7 +57,8 @@ if skenario == "sungai" or skenario == "pinus" or skenario == "hijau" or skenari
     -- warnanya dikalikan minimap. Ukuran (elmo) = diameter kawah x ±2,2, termasuk tanah yang terlempar.
     for nama, diameter in pairs({rts_meriam_medium = 62, rts_tank_ringan = 48,
             rts_medium_tank_destroyer = 66, rts_artileri_ringan = 106,
-            rts_robot_roket = 44, rts_meriam_menara = 48}) do
+            rts_robot_roket = 44, rts_meriam_menara = 48, rts_meriam_berat = 52,
+            rts_robot_roket_f2 = 26}) do
         local weapon = weapons[nama]
         weapon.explosionScar = false
         weapon.customparams = weapon.customparams or {}
@@ -69,9 +74,25 @@ end
 -- Kedalaman Recoil sebanding dengan (damage x mult)^0,6, jadi pengali disetel dari hasil ukur uji kawah.
 for nama, k in pairs({rts_meriam_medium = {28, 3.2}, rts_tank_ringan = {22, 5.5},
         rts_medium_tank_destroyer = {30, 1.3}, rts_artileri_ringan = {48, 10},
-        rts_robot_roket = {20, 2.1}, rts_meriam_menara = {22, 3}}) do
+        rts_robot_roket = {20, 2.1}, rts_meriam_menara = {22, 3}, rts_meriam_berat = {24, 3.2},
+        rts_robot_roket_f2 = {12, 1.6}}) do
     local weapon = weapons[nama]
     weapon.craterareaofeffect, weapon.cratermult, weapon.craterboost = k[1], k[2], 0
+end
+
+-- Limestone Valley: tambang banyak dan acak (74 titik), jadi hasil per ekstraktor diturunkan dari 2,5 ke 1,5
+-- supaya total tetap ±14 besi/detik per pemain (✅ user 2026-11-26, aturan-peta.md bagian 3). Upkeep energi ikut
+-- turun dengan rasio yang sama.
+if skenario == "kapur" then
+    local e = units.ekstraktor_besi
+    e.makesMetal, e.energyUpkeep = 1.5, 1.8
+    e.description = "Place on an iron deposit. Produces 1.5 iron per second while powered"
+end
+
+-- Unit tidak terlempar oleh ledakan (✅ user 2026-11-26: "unit ga bisa terlempar"). Impuls Recoil
+-- (impulseFactor bawaan 1) bisa melontarkan unit ringan. Damage tetap utuh.
+for _, weapon in pairs(weapons) do
+    weapon.impulsefactor, weapon.impulseboost = 0, 0
 end
 
 -- Tapak tanah di bawah bangunan (✅ user 2026-11-26). Tekstur dari tools/buat_decal.py. Ukurannya tapak ditambah
@@ -88,7 +109,7 @@ end
 -- Ikon strategis zoom jauh (tools/buat_ikon.py, gamedata/icontypes.lua).
 local ikon = VFS.Include("gamedata/ikon_unit.lua")
 for key, unit in pairs(units) do
-    unit.iconType = ikon[key] or "bangunan"
+    unit.iconType = ikon[key] or ikon[padananF2[key]] or (key == "heavy_tank_f2" and "tank") or "bangunan"
 end
 
 for key, unit in pairs(units) do

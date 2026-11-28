@@ -434,7 +434,9 @@ function M.baru(c)
     -- regu dalam 1500 elmo bergerak mencegat sebelum bangunan diserang.
     local cepat = {}
     for _, n in ipairs({"pengintai", "tank_ringan", "robot_infanteri"}) do
-        if UnitDefNames[n] then cepat[UnitDefNames[n].id] = true end
+        for id, ud in pairs(UnitDefs) do
+            if (ud.customParams.dasar or ud.name) == n then cepat[id] = true end
+        end
     end
     local modeSerang = "grup"
     local gantiMode = -99999

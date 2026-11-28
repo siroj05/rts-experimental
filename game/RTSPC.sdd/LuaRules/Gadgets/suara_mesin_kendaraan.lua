@@ -26,8 +26,11 @@ for _, profil in ipairs(mesin.profil) do
         profil.file[i] = ("sounds/mesin/%s-%02d.wav"):format(profil.nama, i)
     end
     for _, nama in ipairs(profil.unit) do
-        local def = UnitDefNames[nama]
-        profilUnit[def.id] = {profil = profil, laju = def.speed / Game.gameSpeed}
+        -- Versi Fraksi 2 (customParams.dasar) ikut profil padanannya; Heavy Tank memakai profil medium.
+        for id, def in pairs(UnitDefs) do
+            local dasar = def.customParams.dasar or (def.name == "heavy_tank_f2" and "medium_tank") or def.name
+            if dasar == nama then profilUnit[id] = {profil = profil, laju = def.speed / Game.gameSpeed} end
+        end
     end
 end
 

@@ -3,6 +3,9 @@ if not aturan then return end
 local hud = VFS.Include("LuaUI/hud.lua")
 local batangHp = VFS.Include("LuaUI/batang_hp.lua")
 local fogPerang = VFS.Include("LuaUI/fog_perang.lua")
+local formasi = VFS.Include("LuaUI/formasi.lua")
+local pilihTempur = VFS.Include("LuaUI/pilih_tempur.lua")
+local awanBayang = VFS.Include("LuaUI/awan_bayang.lua")
 local baca = Spring.GetGameRulesParam
 local warnaTim = {
     [-1] = {0.68, 0.72, 0.70},
@@ -19,9 +22,13 @@ if Spring.AssignMouseCursor then
     Spring.AssignMouseCursor("Area attack", "cursorareaattack", true)
 end
 -- Zona Command Core (daya + heal): lingkaran di tanah untuk Command Core sendiri dan sekutu.
-local defMarkas, radiusZona
+local defMarkas, radiusZona -- semua Command Core (Fraksi 1 dan 2)
 for id, ud in pairs(UnitDefs) do
-    if ud.name == "inti_komando" then defMarkas, radiusZona = id, tonumber(ud.customParams.radius_zona) end
+    if (ud.customParams.dasar or ud.name) == "inti_komando" then
+        defMarkas = defMarkas or {}
+        defMarkas[#defMarkas + 1] = id
+        radiusZona = tonumber(ud.customParams.radius_zona)
+    end
 end
 local opsi = Spring.GetModOptions()
 local ekonomi = opsi.ekonomi == "1"
@@ -50,12 +57,16 @@ local function mulaiUlang()
         start = start:gsub("ekonomi=1;", "ekonomi=1;kembali_menu=1;")
     end
     if opsi.mode == "hancur" then start = start:gsub("ekonomi=1;", "ekonomi=1;mode=hancur;") end
+    for k, v in pairs(opsi) do
+        if k:match("^fraksi_%d+$") then start = start:gsub("ekonomi=1;", "ekonomi=1;" .. k .. "=" .. v .. ";") end
+    end
     if not ekonomi then start = start:gsub("ekonomi=1;", "") end
     Spring.Reload(start)
 end
 
 function Update()
     if shown then
+        pilihTempur.Update()
         hud.Update()
         return
     end
@@ -80,6 +91,7 @@ function Update()
     end
     hud.Initialize(mulaiUlang, dariSkirmish and kembaliSkirmish)
     fogPerang.Initialize()
+    awanBayang.Initialize()
     shown = true
 end
 
@@ -87,6 +99,7 @@ function Shutdown()
     if shown then
         hud.Shutdown()
         fogPerang.Shutdown()
+        awanBayang.Shutdown()
     end
 end
 
@@ -124,6 +137,7 @@ end
 function CommandNotify(cmd, params, options)
     if menuJeda and menuJeda.terbuka then return true end
     if cmd == CMD.ATTACK then hud.AttackFeedback(params, options) end
+    if formasi.CommandNotify(cmd, params, options) then return true end
     if not ekonomi or cmd ~= -ekstraktor or #params < 3 then return false end
     local x, z, hadap = params[1], params[3], params[4] or 0
     for _, t in ipairs(ladang) do
@@ -157,6 +171,7 @@ end
 
 function DrawWorld()
     if not shown then return end
+    awanBayang.DrawWorld()
     gl.DepthTest(true)
     gl.LineWidth(2)
     for _, t in ipairs(aturan.titik) do

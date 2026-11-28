@@ -59,9 +59,10 @@ local function visible(x, y, z)
     return semuaTerlihat or sp.IsPosInLos(x, y + 6, z, sp.GetMyAllyTeamID())
 end
 
+local suaraTempur = VFS.Include("LuaRules/Configs/suara_tempur.lua").main
 local function suaraBenturan(_, x, y, z, volume)
     if visible(x, y, z) then
-        sp.PlaySoundFile("sounds/ledakan-permukaan.wav", volume, x, y, z, "battle")
+        suaraTempur("sounds/ledakan-permukaan.wav", volume, x, y, z)
     elseif pakaiBekasBawaan then
         benturanTersembunyi[#benturanTersembunyi + 1] = {x, z}
     end

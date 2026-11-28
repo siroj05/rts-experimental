@@ -1,4 +1,5 @@
 -- Statistik dari daftar aktif V2. Jarak, laju dan tapak dikonversi di sini.
+-- ✅ user 2026-11-27: "infantry dan roket, range tembaknya sama kaya medium tank" -> Burst Carbine dan Rocket Launcher 38 m (= meriam_medium 304 elmo).
 local records = {
     tank_ringan = {
         nama = "Light Tank", peran = "Fast frontline tank",
@@ -29,13 +30,13 @@ local records = {
         nama = "Infantry Robot", peran = "Burst-fire infantry. Captures control points",
         hp = 120, besi = 40, energi = 112, detik = 5, laju = 4, aksel = 10, putar = 400, los = 35,
         tapak = {1, 1}, collider = {10, 14, 10}, robot = true,
-        senjata = {nama = "Burst Carbine", damage = 8, jeda = 2, laras = 4, jarak = 22, laju = 120, bidik = .8, kecil = true},
+        senjata = {nama = "Burst Carbine", damage = 8, jeda = 2, laras = 4, jarak = 38, laju = 120, bidik = .8, kecil = true},
     },
     robot_roket = {
         nama = "Rocket Robot", peran = "Anti-armor infantry. Captures control points",
         hp = 110, besi = 70, energi = 225, detik = 7, laju = 3.6, aksel = 8, putar = 360, los = 35,
         tapak = {1, 1}, collider = {12, 16, 12}, robot = true,
-        senjata = {nama = "Rocket Launcher", damage = 45, jeda = 2.5, jarak = 30, laju = 45,
+        senjata = {nama = "Rocket Launcher", damage = 45, jeda = 2.5, jarak = 38, laju = 45,
             lawanBerat = 1.25, area = 2, roket = true, bidik = .7},
     },
 }

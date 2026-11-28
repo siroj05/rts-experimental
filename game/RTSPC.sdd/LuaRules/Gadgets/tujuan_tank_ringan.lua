@@ -5,11 +5,12 @@ if not gadgetHandler:IsSyncedCode() then return false end
 
 local sp = Spring
 local tankRingan = UnitDefNames.tank_ringan.id
+local dasar = VFS.Include("gamedata/fraksi.lua").dasar
 local toleransi = 32 -- 4 m. Sisakan ruang berhenti untuk panjang badan tank.
 local pending = {}
 
 function gadget:UnitCmdDone(id, def, _, cmd, params, opts)
-    if def ~= tankRingan or cmd ~= CMD.MOVE or opts.internal or sp.GetUnitCurrentCommand(id) then return end
+    if dasar[def] ~= tankRingan or cmd ~= CMD.MOVE or opts.internal or sp.GetUnitCurrentCommand(id) then return end
     local tx, ty, tz = unpack(params)
     if not tz then return end
     local x, _, z = sp.GetUnitPosition(id)
